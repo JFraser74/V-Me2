@@ -1,11 +1,13 @@
-from langchain.agents import AgentType, initialize_agent
-from langchain-experimental import PythonREPLTool
-from langchain_groq import ChatGroq
 import os
 from dotenv import load_dotenv
 load_dotenv()
 
-llm = ChatGroq(groq_api_key=os.environ.get('GROQ_API_KEY'))
+from langchain.agents import AgentType, initialize_agent
+from langchain_experimental.tools import PythonREPLTool
+from langchain_groq import ChatGroq
+
+llm = ChatGroq(groq_api_key=os.environ.get('GROQ_API_KEY'), model_name='llama-3.2-11b-vision-preview')
+
 tools = [PythonREPLTool()]
 
 agent = initialize_agent(tools, llm, agent=AgentType.REACT_DESCRIPTION, verbose=True)
