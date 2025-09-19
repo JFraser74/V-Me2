@@ -6,7 +6,7 @@ from langchain.agents import AgentType, initialize_agent
 from langchain_experimental.tools import PythonREPLTool
 from langchain_groq import ChatGroq
 
-llm = ChatGroq(groq_api_key=os.environ.get('GROQ_API_KEY'), model_name='llama-3-8b-8192')  # Update to a supported model
+llm = ChatGroq(groq_api_key=os.environ.get('GROQ_API_KEY'), model_name='llama-3-70b-8192')  # Updated to a supported model
 
 tools = [PythonREPLTool()]
 
