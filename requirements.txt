@@ -7,3 +7,4 @@ supabase
 requests
 langchain
 langchain-experimental
+langchain-openai
