@@ -1,3 +1,7 @@
+
+.env
+.env.bak.*
+
 # Python
 __pycache__/
 *.py[cod]
@@ -50,7 +54,3 @@ media/
 Thumbs.db
 .vscode/
 .idea/
-
-.env
-.env.bak.*
-
