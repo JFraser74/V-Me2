@@ -5,3 +5,4 @@ vosk
 redis
 supabase
 requests
+langchain
