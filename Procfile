@@ -1,1 +1,2 @@
-web: npm start & python reAct_agent.py
+web: npm start &
+worker: python reAct_agent.py
