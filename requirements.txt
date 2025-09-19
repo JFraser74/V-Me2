@@ -1,0 +1,8 @@
+langchain-groq
+python-dotenv
+whisper
+vosk
+redis
+supabase
+requests
+base64
