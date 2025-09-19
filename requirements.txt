@@ -6,4 +6,5 @@ redis
 supabase
 requests
 langchain
+langchain-experimentallangchain
 langchain-experimental
