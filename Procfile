@@ -1,1 +1,1 @@
-web: npm start & python reAct_agent.py
+web: python main.py
