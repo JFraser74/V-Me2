@@ -1,5 +1,5 @@
 from langchain.agents import AgentType, initialize_agent
-from langchain.tools import PythonREPLTool
+from langchain-experimental import PythonREPLTool
 from langchain_groq import ChatGroq
 import os
 from dotenv import load_dotenv
