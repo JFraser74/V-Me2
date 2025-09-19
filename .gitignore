@@ -50,3 +50,6 @@ media/
 Thumbs.db
 .vscode/
 .idea/
+
+from langchain_experimental.tools import PythonREPLTool
+
