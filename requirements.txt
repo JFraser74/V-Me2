@@ -8,5 +8,4 @@ requests
 langchain
 langchain-experimental
 langchain-openai
-langchain-openai
-langchain-openai
+
