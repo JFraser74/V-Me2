@@ -9,6 +9,3 @@ langchain
 langchain-experimental
 langchain
 langchain-experimental
-langchain
-langchain-experimental
-langchain-openai
