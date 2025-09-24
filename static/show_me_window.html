@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>V-Me • Show Me</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <style>
+      :root { --bg:#0b0b0c; --fg:#e9eaee; --muted:#9aa1ac; --card:#141519; --accent:#6ea8fe; }
+      body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial}
+      .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+      .top{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+      .brand{display:flex;gap:10px;align-items:center}
+      .brand h1{font-size:20px;margin:0}
+      .grid{display:grid;grid-template-columns:320px 1fr;gap:16px}
+      .card{background:var(--card);border:1px solid #1f2026;border-radius:14px;padding:14px}
+      .card h3{margin:.1rem 0 .6rem 0;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+      .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+      input,select,button,textarea{background:#0f1115;color:var(--fg);border:1px solid #232530;border-radius:10px}
+      input,select,button{height:36px;padding:0 10px}
+      textarea{width:100%;min-height:110px;padding:10px}
+      button{cursor:pointer}
+      .tabs{display:flex;gap:6px;flex-wrap:wrap}
+      .tab{padding:6px 10px;border:1px solid #232530;border-radius:10px;background:#0f1115;cursor:pointer}
+      .tab.active{border-color:var(--accent);box-shadow:0 0 0 1px inset var(--accent)}
+      .log{white-space:pre-wrap;background:#0f1115;border:1px solid #232530;border-radius:10px;padding:10px;min-height:100px}
+      .list{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;font-size:12.5px}
+      .muted{color:var(--muted)}
+      .pill{padding:2px 8px;border:1px solid #2a2c35;border-radius:999px;background:#11131a}
+      .right{display:flex;gap:8px;align-items:center}
+      .kbd{font-family:ui-monospace,monospace;padding:2px 6px;border:1px solid #2a2c35;border-radius:8px;background:#11131a}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <div class="brand">
+          <img src="/static/vme2-logo.png" alt="logo" width="28" height="28" onerror="this.style.display='none'"/>
+          <h1>V-Me • Show Me</h1>
+          <span class="pill" id="session-pill">session: n/a</span>
+        </div>
+        <div class="right">
+          <span class="muted">/agent/chat + /api/settings</span>
+          <span class="kbd">/ls .</span>
+          <span class="kbd">/read main.py</span>
+        </div>
+      </div>
+
+      <div class="grid">
+        <!-- Left column -->
+        <div class="card">
+          <h3>Controls</h3>
+          <div class="row">
+            <input id="label" placeholder="session label (optional)"/>
+            <button id="newSessionBtn" title="Start a new session on next send">New session on send</button>
+          </div>
+          <div style="height:10px"></div>
+          <textarea id="msg" placeholder="Type a message or slash command (e.g., /ls .)"></textarea>
+          <div class="row" style="margin-top:8px">
+            <button id="send">Send</button>
+            <span id="status" class="muted"></span>
+          </div>
+
+          <div style="height:16px"></div>
+          <h3>Settings</h3>
+          <div id="settingsBox" class="list muted">(loading …)</div>
+          <div class="row" style="margin-top:8px">
+            <label class="muted">TTS speed</label>
+            <input id="ttsSpeed" type="number" step="0.1" min="0.5" max="2.0" value="1.0" style="width:88px"/>
+            <label class="muted">Queue reminder (min)</label>
+            <input id="queueMinutes" type="number" step="1" min="1" max="60" value="5" style="width:88px"/>
+            <button id="saveSettings">Save</button>
+          </div>
+          <div class="muted" id="settingsNote" style="margin-top:6px"></div>
+        </div>
+
+        <!-- Right column -->
+        <div class="card">
+          <h3>Modes</h3>
+          <div class="tabs" id="modes">
+            <button class="tab active" data-mode="Chat">Chat</button>
+            <button class="tab" data-mode="Email">Email</button>
+            <button class="tab" data-mode="Coding" title="Open the Coding tab to read and edit project files (read uses /agent/read, save uses /agent/write)">Coding</button>
+            <button class="tab" data-mode="Supabase">Supabase</button>
+            <button class="tab" data-mode="Docs">Docs</button>
+            <button class="tab" data-mode="Schedule">Schedule</button>
+            <button class="tab" data-mode="Budget">Budget</button>
+            <button class="tab" data-mode="PDF" title="Open the PDF tab to load a remote PDF URL or upload a local PDF file for viewing">PDF</button>
+            <button class="tab" data-mode="Earth">GoogleEarth</button>
+          </div>
+          <div id="modePanel" class="muted" style="margin-top:10px">
+            Ready. Use Chat for now; other tabs are placeholders you can wire later.
+          </div>
+
+          <div style="height:16px"></div>
+          <h3>Conversation</h3>
+          <div id="log" class="log list"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/static/show_me_window.js"></script>
+  </body>
+</html>

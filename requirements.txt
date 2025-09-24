@@ -10,3 +10,4 @@ langchain-experimental
 langchain-groq
 whisper
 vosk
+langgraph==0.2.*
