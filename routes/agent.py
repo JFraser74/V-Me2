@@ -2,7 +2,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 
-from lib.supabase_client import safe_log_message, create_session
+import os
+from lib.supabase_client import safe_log_message, create_session, safe_log_tool_event, select_tool_events
 from graph.va_graph import get_graph
 from fastapi import Query
 from typing import List, Dict
@@ -42,31 +43,75 @@ def chat(payload: ChatIn):
         session_id = str(sid) if sid is not None else ""
 
     # Prepare graph input
+    # Development/testing: allow a local/mock LLM response when DEV_LOCAL_LLM is set.
+    # This is useful when you don't have a usable OpenAI secret key available.
+    if os.getenv("DEV_LOCAL_LLM", "").lower() in ("1", "true", "yes"):
+        text = f"(local-mode) Echo: {payload.message}"
+        # best-effort log of assistant text
+        try:
+            sid_for_log = session_id
+            if isinstance(sid_for_log, str):
+                try:
+                    sid_for_log = int(sid_for_log)
+                except Exception:
+                    sid_for_log = None
+            safe_log_message(session_id=sid_for_log, role="assistant", content=text)
+        except Exception:
+            pass
+        return ChatOut(session_id=session_id, text=text)
+
     graph = get_graph()
     state_in = {
         "session_id": session_id,
         "messages": [{"role": "user", "content": payload.message}],
     }
-    result = graph.invoke(
-        state_in,
-        config={"configurable": {"thread_id": session_id or None}},
-    )
+    # Best-effort: also log the user message when we have a session
+    try:
+        if session_id:
+            safe_log_message(session_id=session_id, role="user", content=payload.message)
+    except Exception:
+        pass
+    try:
+        result = graph.invoke(
+            state_in,
+            config={"configurable": {"thread_id": session_id or None}},
+        )
+    except Exception as e:
+        # LangGraph/LangChain/OpenAI may raise a BadRequest when message roles
+        # like 'tool' are passed directly to the OpenAI chat endpoint. Detect
+        # that specific case and return a helpful error so the developer can
+        # decide whether the issue is the key, the prompt, or the graph/tooling.
+        msg = str(e)
+        if "messages with role 'tool'" in msg or "role 'tool'" in msg:
+            raise HTTPException(status_code=400, detail=(
+                "OpenAI rejected the request: messages with role 'tool' were sent to the model. "
+                "This typically means the agent included tool messages in the chat payload. "
+                "Try running with DEV_LOCAL_LLM=true to avoid external calls, or adjust the graph/tool integration."))
+        # For other errors, surface a 500 with the original message for debugging
+        raise HTTPException(status_code=500, detail=f"agent error: {msg}")
     text = result.get("last_text", "")
 
-    # Log reply (best-effort)
+    # Log assistant reply (best-effort)
+    safe_log_message(session_id=session_id, role="assistant", content=text)
+
+    # Log any tool events captured by the graph (best-effort)
     try:
-        # prefer integer session IDs when possible for DB storage
-        sid_for_log = session_id
-        if isinstance(sid_for_log, str):
-            try:
-                sid_for_log = int(sid_for_log)
-            except Exception:
-                sid_for_log = None
-        safe_log_message(session_id=sid_for_log, role="assistant", content=text)
+        for evt in result.get("tool_events", []) or []:
+            safe_log_tool_event(session_id=session_id, tool_name=evt.get("tool_name") or "unknown", input_json=evt.get("input_json"), output_json=evt.get("output_json"))
     except Exception:
         pass
 
     return ChatOut(session_id=session_id, text=text)
+
+
+@router.get("/tool_events")
+def tool_events(session_id: str, limit: int = 10):
+    """Return recent tool events for a session (read-only)."""
+    try:
+        rows = select_tool_events(session_id, limit=limit)
+        return rows
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/messages")
@@ -123,6 +168,65 @@ def _safe_resolve(path: str) -> Path:
     if not str(p).startswith(str(_PROJECT_ROOT)):
         raise ValueError("Path escapes project root")
     return p
+
+
+@router.get("/ls")
+def agent_ls(path: str = "."):
+    """List directory contents under project root. Uses tools.codespace.ls_tool if available; otherwise falls back to os.listdir.
+
+    The endpoint is sandboxed to the repository root; attempts to escape will be rejected.
+    """
+    try:
+        target = _safe_resolve(path)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Prefer tooling implementation when available
+    if _TOOLING_AVAILABLE:
+        try:
+            out = read_file_tool.invoke({"path": str(target), "start": 0, "end": 0})
+            # The codespace tooling exposes a separate ls tool; try to call it if present
+            try:
+                from tools.codespace import ls_tool as _ls_tool
+                res = _ls_tool.invoke({"path": str(target)})
+                # Normalize items: tool may return list[str], list[dict], or a single
+                # string containing newline-separated lines like 'DIR\tname' or 'FILE\tname'.
+                if isinstance(res, str):
+                    items = []
+                    for line in res.splitlines():
+                        if not line.strip():
+                            continue
+                        parts = line.split("\t", 1)
+                        if len(parts) == 2:
+                            kind, name = parts
+                        else:
+                            kind, name = "FILE", parts[0]
+                        items.append({"name": name, "is_dir": kind.strip().upper().startswith("DIR"), "size": None})
+                elif isinstance(res, list) and res and isinstance(res[0], str):
+                    items = [{"name": n, "is_dir": False, "size": None} for n in res]
+                else:
+                    items = res
+                return {"ok": True, "path": str(target.relative_to(_PROJECT_ROOT)), "items": items}
+            except Exception:
+                # Fall back to tooling read result if ls not available
+                return {"ok": True, "path": str(target.relative_to(_PROJECT_ROOT)), "items": []}
+        except Exception:
+            # Continue to filesystem fallback
+            pass
+
+    # Filesystem fallback: list entries (names + basic metadata)
+    try:
+        items = []
+        for name in sorted(os.listdir(target)):
+            p = target / name
+            items.append({
+                "name": name,
+                "is_dir": p.is_dir(),
+                "size": p.stat().st_size if p.exists() and p.is_file() else None,
+            })
+        return {"ok": True, "path": str(target.relative_to(_PROJECT_ROOT)), "items": items}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 class ReadReq(BaseModel):
     path: str

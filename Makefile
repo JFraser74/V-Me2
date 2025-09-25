@@ -15,10 +15,11 @@ test:
 	@echo "Freeing port $(PORT) if in use..."
 	@sh -c 'pids=$$(lsof -ti tcp:$(PORT) 2>/dev/null || true); if [ -n "$$pids" ]; then echo "killing $$pids"; echo "$${pids}" | xargs -r kill -9 || true; fi'
 	@echo "Starting temporary uvicorn on port $(PORT)..."
-	@PYTHONPATH=. PORT=$(PORT) nohup uvicorn main:app --host 127.0.0.1 --port $(PORT) --log-level warning > /tmp/uvicorn.log 2>&1 & echo $$! > .uvicorn_pid
+	# Allow LANGGRAPH=1 to enable the real LangGraph agent during tests.
+	@PYTHONPATH=. PORT=$(PORT) AGENT_USE_LANGGRAPH=$(LANGGRAPH) nohup uvicorn main:app --host 127.0.0.1 --port $(PORT) --log-level warning > /tmp/uvicorn.log 2>&1 & echo $$! > .uvicorn_pid
 	@sleep 1
 	@echo "Running tests..."
-	@PYTHONPATH=. pytest -q
+	@PYTHONPATH=. AGENT_USE_LANGGRAPH=$(LANGGRAPH) pytest -q
 	@echo "Cleaning up temporary server..."
 	@sh -c 'if [ -f .uvicorn_pid ]; then pid=$$(cat .uvicorn_pid); kill -9 $$pid 2>/dev/null || true; rm -f .uvicorn_pid; fi'
 

@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # (2025-09-23 16:49 ET - Boot/Deploy Fix - solid)
 import os
+from dotenv import load_dotenv
+load_dotenv()
+import logging
+_log = logging.getLogger("uvicorn.error")
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
@@ -10,6 +14,29 @@ import uvicorn
 from routes.agent import router as agent_router
 
 app = FastAPI(title="V-Me2")
+
+
+@app.on_event("startup")
+def _check_openai_key():
+  """Sanity-check OPENAI_API_KEY at startup and log a masked status message.
+
+  This avoids printing secrets while giving a clear hint if the key is missing
+  or looks like a project-style key (starts with 'sk-proj-') which is not
+  valid for API requests.
+  """
+  key = os.getenv("OPENAI_API_KEY")
+  if not key:
+    _log.warning("OPENAI_API_KEY: MISSING (set it in .env or the environment)")
+    return
+  # Mask but show a short prefix/suffix for debugging without exposing the key
+  try:
+    masked = f"{key[:4]}***{key[-4:]}"
+  except Exception:
+    masked = "***MASKED***"
+  if key.startswith("sk-proj-"):
+    _log.warning("OPENAI_API_KEY appears to be a project key (sk-proj-...). This type of key cannot be used for API calls. Replace with a standard sk-... API key. %s", masked)
+  else:
+    _log.info("OPENAI_API_KEY loaded: %s", masked)
 
 # CORS (adjust as needed)
 app.add_middleware(
