@@ -1,3 +1,4 @@
+ # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: CI
 
 on:
@@ -36,7 +37,7 @@ jobs:
           PYTHONPATH=. pytest -q
 
   integration:
-    if: ${{ secrets.LANGGRAPH_ENABLED }}
+    if: ${{ secrets.LANGGRAPH_ENABLED && secrets.OPENAI_API_KEY }}
     runs-on: ubuntu-latest
     needs: tests
     steps:

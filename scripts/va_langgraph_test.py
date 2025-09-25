@@ -46,6 +46,7 @@ def probe_filter():
 def main_run():
     print("va_langgraph_test: starting")
     print("AGENT_TOOLS_ENABLED:", os.getenv("AGENT_TOOLS_ENABLED", "1"))
+    print("AGENT_USE_LANGGRAPH:", os.getenv("AGENT_USE_LANGGRAPH", "0"))
     print("OPENAI_MODEL:", os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
     print(json.dumps(run_health_check(), indent=2))
     print("-- plain chat --")
@@ -54,6 +55,36 @@ def main_run():
     print(json.dumps(run_chat_test("Use the ls tool to list project files and summarize."), indent=2))
     print("-- filter probe --")
     print(json.dumps(probe_filter(), indent=2))
+    # quick ls probe
+    try:
+        c = TestClient(main.app)
+        r = c.get('/agent/ls?path=.')
+        print('-- ls probe --')
+        try:
+            print(json.dumps(r.json(), indent=2))
+        except Exception:
+            print(r.text)
+    except Exception as e:
+        print('ls probe failed', e)
+
+    # tool_events round-trip (best-effort): create a session, log a tool event, fetch it
+    try:
+        c = TestClient(main.app)
+        r = c.post('/agent/chat', json={'message': 'probe tool events', 'label': 'va-langgraph-test'})
+        sid = None
+        try: sid = r.json().get('session_id')
+        except Exception: sid = None
+        print('-- created session:', sid)
+        if sid:
+            # Try to fetch tool events (may be empty)
+            te = c.get(f'/agent/tool_events?session_id={sid}&limit=5')
+            print('-- tool_events --')
+            try:
+                print(json.dumps(te.json(), indent=2))
+            except Exception:
+                print(te.text)
+    except Exception as e:
+        print('tool_events probe failed', e)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,32 @@
   const setStatus = (t) => { $('#status') && ($('#status').textContent = t || ''); };
   const log = (t) => { const el=$('#log'); if(!el) return; el.textContent += (t + "\n"); el.scrollTop = el.scrollHeight; };
   const pill = (id) => { const el=$('#session-pill'); if(el) el.textContent = 'session: ' + (id || 'n/a'); };
+  const setLangPill = (v) => { const el=$('#langgraph-pill'); if(!el) return; el.textContent = 'LangGraph: ' + (v ? 'enabled' : 'disabled'); el.style.background = v ? '#133' : '#311'; };
+  const setSettingsBanner = (text, warn) => { const el=$('#settingsBanner'); if(!el) return; el.textContent = text || ''; el.style.color = warn ? 'orange' : ''; };
+
+  // Monaco editor integration (load from CDN on demand)
+  let monacoEditor = null;
+  async function loadMonaco() {
+    if (monacoEditor) return monacoEditor;
+    if (!window.require) {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js';
+      document.head.appendChild(s);
+      await new Promise(r => s.onload = r);
+    }
+    return new Promise((resolve, reject) => {
+      try {
+        window.require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' } });
+        window.require(['vs/editor/editor.main'], () => {
+          const container = document.getElementById('codeArea') || document.getElementById('codeAreaContainer');
+          if (!container) { resolve(null); return; }
+          const ed = monaco.editor.create(container, { value: '', language: 'plaintext', automaticLayout: true, wordWrap: 'off' });
+          monacoEditor = ed;
+          resolve(ed);
+        });
+      } catch (e) { resolve(null); }
+    });
+  }
 
   // Modes (placeholders + working ones)
   const modePanel = $('#modePanel');
@@ -59,6 +85,18 @@
         else { codeStatus.textContent = data.error || 'read failed'; }
       } catch(e){ codeStatus.textContent = 'error'; log('[read error] '+e); }
     };
+    
+    // Try to initialize Monaco editor if present (async)
+    (async ()=>{
+      const mon = await loadMonaco();
+      if (mon) {
+        const ta = document.getElementById('codeArea');
+        if (ta) {
+          const wrap = document.createElement('div'); wrap.id = 'codeAreaContainer'; wrap.style.height = '300px'; ta.parentNode.replaceChild(wrap, ta);
+          mon.setValue(codeArea.value || '');
+        }
+      }
+    })();
     async function write(confirm){
       const path = codePath.value.trim(); if(!path) return;
       codeStatus.textContent = confirm ? 'saving…' : 'previewing…';
@@ -72,6 +110,26 @@
     }
     if (prevBtn) prevBtn.onclick = ()=>write(false);
     if (saveBtn) saveBtn.onclick = ()=>write(true);
+
+    // Dirty state handling
+    let dirty = false;
+    function markDirty(v) { dirty = v; window.onbeforeunload = v ? function(){ return 'Unsaved changes'; } : null; }
+    // Monitor monaco or textarea
+    setInterval(()=>{
+      try{
+        const cur = monacoEditor ? monacoEditor.getValue() : (codeArea ? codeArea.value : '');
+        if (cur !== (codeArea._last || '')) { markDirty(true); }
+      }catch(e){}
+    }, 800);
+    // After successful save, clear dirty when confirmed
+    const prevWrite = write;
+    write = async function(confirm){
+      const res = await prevWrite(confirm);
+      try{
+        if (res && res.ok && confirm) { markDirty(false); }
+      }catch(e){}
+      return res;
+    };
 
     // wire PDF controls if present
     const pdfFrame = $('#pdfFrame');
@@ -109,6 +167,7 @@
       $('#settingsBox').textContent = JSON.stringify(data, null, 2);
       if (typeof data.tts_speed === 'number') $('#ttsSpeed').value = data.tts_speed;
       if (typeof data.queue_reminder_minutes === 'number') $('#queueMinutes').value = data.queue_reminder_minutes;
+  if (typeof data.agent_use_langgraph === 'boolean') { $('#agentUseLanggraph').checked = data.agent_use_langgraph; setLangPill(data.agent_use_langgraph); }
       $('#settingsNote').textContent = 'Loaded from /api/settings';
     } catch {
       $('#settingsBox').textContent = '(settings API unavailable — UI will still work; Save disabled)';
@@ -121,18 +180,74 @@
       const payload = {
         tts_speed: parseFloat($('#ttsSpeed').value || '1.0'),
         queue_reminder_minutes: parseInt($('#queueMinutes').value || '5', 10),
+        agent_use_langgraph: !!$('#agentUseLanggraph').checked,
       };
       setStatus('saving…');
-      const r = await fetch('/api/settings', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload)});
+  const token = $('#adminToken') ? $('#adminToken').value.trim() : '';
+  const headers = {'content-type':'application/json'};
+  if (token) headers['X-Admin-Token'] = token;
+  const r = await fetch('/api/settings', {method:'POST', headers: headers, body: JSON.stringify(payload)});
       if (!r.ok) throw new Error(await r.text());
+      const body = await r.json();
       await loadSettings();
       setStatus('saved');
+      if (body && body.applied_in_process) {
+        $('#langgraphNote').textContent = 'applied in-process';
+        setSettingsBanner('LangGraph change applied in-process', false);
+        if (payload.agent_use_langgraph !== undefined) setLangPill(payload.agent_use_langgraph);
+      } else if (payload.agent_use_langgraph !== undefined) {
+        $('#langgraphNote').textContent = 'restart may be required';
+        setSettingsBanner('LangGraph change saved; server restart required to apply', true);
+      }
       setTimeout(()=>setStatus(''),900);
     } catch(e) {
       setStatus('save failed');
       log('[settings error] ' + e);
     }
   });
+
+  // New settings UI helpers (Supabase-backed)
+  async function ui_load_settings() {
+    const token = $('#adminToken') ? $('#adminToken').value.trim() : '';
+    const headers = {};
+    if (token) headers['X-Admin-Token'] = token;
+    try {
+      const r = await fetch('/api/settings', {headers});
+      if (!r.ok) throw new Error(await r.text());
+      const body = await r.json();
+      return body;
+    } catch (e) { return {ok:false, error: String(e)}; }
+  }
+
+  async function ui_save_settings(map) {
+    const token = $('#adminToken') ? $('#adminToken').value.trim() : '';
+    const headers = {'content-type':'application/json'};
+    if (token) headers['X-Admin-Token'] = token;
+    try {
+      const r = await fetch('/api/settings', {method:'PUT', headers, body: JSON.stringify(map)});
+      const body = await r.json();
+      return body;
+    } catch(e) { return {ok:false, error: String(e)}; }
+  }
+
+  // wire admin token saved earlier to load settings fields in the S pane
+  $('#saveadmintoken') && ($('#saveadmintoken').onclick = () => { const t = $('#adminToken').value.trim(); if(t) { localStorage.setItem('X_ADMIN_TOKEN', t); alert('Admin token saved locally.'); } });
+  $('#loadsettings') && ($('#loadsettings').onclick = async ()=>{
+    const res = await ui_load_settings();
+    if (!res.ok) { alert('load failed: '+(res.error||JSON.stringify(res))); return; }
+    const s = res.settings || {};
+    ['OPENAI_MODEL','AGENT_TOOLS_ENABLED','OPENAI_API_KEY','SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','SUPABASE_ANON_KEY'].forEach(k=>{ const el = $('#s_'+k); if(el) el.value = s[k] ?? ''; });
+    setSettingsBanner('Loaded settings (secrets masked). Use Save to rotate keys.');
+  });
+  $('#savesettings') && ($('#savesettings').onclick = async ()=>{
+    const body = {};
+    ['OPENAI_MODEL','AGENT_TOOLS_ENABLED','OPENAI_API_KEY','SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','SUPABASE_ANON_KEY'].forEach(k=>{ const el = $('#s_'+k); if(el && el.value.trim().length) body[k]=el.value.trim(); });
+    if (!Object.keys(body).length) { alert('Nothing to save'); return; }
+    const res = await ui_save_settings(body);
+    if (!res.ok) { alert('save failed: '+JSON.stringify(res)); return; }
+    alert('Saved keys: '+JSON.stringify(res.updated||[]));
+  });
+
 
   // Sessions list (left panel)
   async function loadSessions() {

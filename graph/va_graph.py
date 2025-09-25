@@ -8,6 +8,7 @@ responder so the rest of the app and tests can run in local development.
 from __future__ import annotations
 import os
 from typing import Any, Dict, List, TypedDict, TYPE_CHECKING
+from lib.supabase_client import settings_get
 
 if TYPE_CHECKING:
     from langgraph.prebuilt import create_react_agent  # type: ignore
@@ -126,7 +127,8 @@ def _build_graph():
         return None
 
     tools = []
-    tools_enabled = os.getenv("AGENT_TOOLS_ENABLED", "1") not in ("0", "false", "False")
+    _tools_enabled_val = settings_get("AGENT_TOOLS_ENABLED", os.getenv("AGENT_TOOLS_ENABLED", "1"))
+    tools_enabled = str(_tools_enabled_val).lower() not in ("0", "false", "False", "no", "off")
     if _TOOLS_OK and tools_enabled:
         tools = [
             ls_tool,
@@ -139,7 +141,9 @@ def _build_graph():
             sb_upsert_tool,
         ]
 
-    llm = GuardedChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"), temperature=0)
+    _model = settings_get("OPENAI_MODEL", os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
+    _api_key = settings_get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"), decrypt=True)
+    llm = GuardedChatOpenAI(model=_model, temperature=0, api_key=_api_key)
     return create_react_agent(llm, tools, state_schema=AgentState)
 
 

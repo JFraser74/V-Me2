@@ -3,6 +3,8 @@ PY ?= python3
 
 .PHONY: run test smoke install
 
+.PHONY: langgraph-test dev smoke-curl
+
 run:
 	# Start the app on the configured PORT (default 8080). Use PYTHONPATH so
 	# imports work from the repo root.
@@ -26,6 +28,19 @@ test:
 smoke:
 	# Run the one-file smoke script (starts the app and posts a message).
 	PYTHONPATH=. PORT=$(PORT) $(PY) scripts/smoke_agent_post.py
+
+langgraph-test:
+	PYTHONPATH=. ./va_langgraph_test
+
+dev:
+	# Run dev server on 0.0.0.0:PORT (default 8080)
+	PYTHONPATH=. uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+
+smoke-curl:
+	# Simple curl checks for health and showme (requires server running)
+	curl -sS http://127.0.0.1:${PORT:-8000}/health || true
+	curl -sS http://127.0.0.1:${PORT:-8000}/showme || true
+	curl -sS -X POST -H "Content-Type: application/json" -d '{"message":"smoke"}' http://127.0.0.1:${PORT:-8000}/agent/chat || true
 
 install:
 	# Install project dependencies.

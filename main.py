@@ -12,6 +12,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from routes.agent import router as agent_router
+from fastapi import Request, Header
+import json
+from pathlib import Path
+import importlib
+from lib import supabase_client as _sbmod
+from lib.supabase_client import settings_list, settings_put, settings_refresh
 
 app = FastAPI(title="V-Me2")
 
@@ -54,6 +60,212 @@ if STATIC_DIR.exists():
 
 # include API routers
 app.include_router(agent_router)
+
+
+# Simple file-backed settings API used by the UI. This keeps settings local to the
+# repository (no external dependency) and allows toggling features such as
+# AGENT_USE_LANGGRAPH from the web UI. Settings are persisted to
+# <project>/.vme2_settings.json. Changes attempt an in-process graph reload but
+# a server restart may be required in some environments.
+_PROJECT_ROOT = Path(__file__).resolve().parents[0]
+
+
+def _load_settings():
+  # defaults
+  s = {
+    "tts_speed": 1.0,
+    "queue_reminder_minutes": 5,
+    "agent_use_langgraph": os.getenv("AGENT_USE_LANGGRAPH", "0") in ("1", "true", "yes"),
+  }
+  # Try Supabase first
+  try:
+    sb = _sbmod._client()
+    if sb:
+      res = sb.table('va_settings').select('key,value').execute()
+      rows = res.data or []
+      for r in rows:
+        k = r.get('key')
+        v = r.get('value')
+        try:
+          # value is stored as JSON; coerce common keys
+          if k == 'tts_speed':
+            s['tts_speed'] = float(v)
+          elif k == 'queue_reminder_minutes':
+            s['queue_reminder_minutes'] = int(v)
+          elif k == 'agent_use_langgraph':
+            s['agent_use_langgraph'] = bool(v)
+          else:
+            s[k] = v
+        except Exception:
+          s[k] = v
+      return s
+  except Exception:
+    pass
+
+  # Fallback to file-backed
+  _SETTINGS_FILE = _PROJECT_ROOT / '.vme2_settings.json'
+  try:
+    if _SETTINGS_FILE.exists():
+      data = json.loads(_SETTINGS_FILE.read_text())
+      s.update(data or {})
+  except Exception:
+    pass
+  return s
+
+
+def _save_settings(payload: dict):
+  # Try Supabase first
+  try:
+    sb = _sbmod._client()
+    if sb:
+      # Upsert each key into va_settings (simple delete/insert for simplicity)
+      for k, v in (payload or {}).items():
+        try:
+          sb.table('va_settings').upsert({'key': k, 'value': v}).execute()
+        except Exception:
+          # fallback to insert-on-conflict
+          try:
+            sb.table('va_settings').insert({'key': k, 'value': v}).execute()
+          except Exception:
+            pass
+      # Return current settings after write
+      return _load_settings()
+  except Exception:
+    pass
+
+  # Fallback to file-backed
+  _SETTINGS_FILE = _PROJECT_ROOT / '.vme2_settings.json'
+  try:
+    data = _load_settings()
+    data.update(payload or {})
+    _SETTINGS_FILE.write_text(json.dumps(data, indent=2))
+    return data
+  except Exception:
+    return None
+
+
+def _is_local_request(request: Request) -> bool:
+  # Allow local-only access when SETTINGS_ADMIN_TOKEN is not set.
+  host = request.client.host if request.client else None
+  return host in ("127.0.0.1", "::1", "localhost", None)
+
+
+@app.get('/api/settings')
+async def api_get_settings(request: Request, x_admin_token: str | None = Header(None)):
+  admin_token = os.getenv('SETTINGS_ADMIN_TOKEN')
+  if admin_token:
+    if not x_admin_token or x_admin_token != admin_token:
+      return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
+  else:
+    # Allow only local calls when no admin token is configured
+    if not _is_local_request(request):
+      return JSONResponse({'ok': False, 'error': 'admin token not set; settings API restricted to localhost'}, status_code=403)
+  # Prefer Supabase-backed settings list
+  try:
+    sb = _sbmod._client()
+    if sb:
+      return JSONResponse({'ok': True, 'settings': settings_list()})
+  except Exception:
+    pass
+  # fallback to file
+  return JSONResponse({'ok': True, 'settings': _load_settings(), 'note': 'fallback file-based'})
+
+
+@app.post('/api/settings')
+async def api_post_settings(request: Request, payload: dict, x_admin_token: str | None = Header(None)):
+  # validate minimal types
+  admin_token = os.getenv('SETTINGS_ADMIN_TOKEN')
+  if admin_token:
+    if not x_admin_token or x_admin_token != admin_token:
+      return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
+  else:
+    # Allow only local calls when no admin token is configured
+    if not _is_local_request(request):
+      return JSONResponse({'ok': False, 'error': 'admin token not set; settings API restricted to localhost'}, status_code=403)
+  ok_keys = {}
+  if 'tts_speed' in payload:
+    try:
+      ok_keys['tts_speed'] = float(payload.get('tts_speed'))
+    except Exception:
+      return JSONResponse({'ok': False, 'error': 'tts_speed must be a number'}, status_code=400)
+  if 'queue_reminder_minutes' in payload:
+    try:
+      ok_keys['queue_reminder_minutes'] = int(payload.get('queue_reminder_minutes'))
+    except Exception:
+      return JSONResponse({'ok': False, 'error': 'queue_reminder_minutes must be an integer'}, status_code=400)
+  if 'agent_use_langgraph' in payload:
+    ok_keys['agent_use_langgraph'] = bool(payload.get('agent_use_langgraph'))
+
+  saved = _save_settings(ok_keys)
+  if saved is None:
+    return JSONResponse({'ok': False, 'error': 'failed to persist settings'}, status_code=500)
+
+  # If AGENT_USE_LANGGRAPH was toggled, write to environment and attempt reload of graph
+  try:
+    restart_required = False
+    applied = False
+    if 'agent_use_langgraph' in ok_keys:
+      val = '1' if ok_keys['agent_use_langgraph'] else '0'
+      os.environ['AGENT_USE_LANGGRAPH'] = val
+      # Persist the flag to DB/file
+      _save_settings({'agent_use_langgraph': ok_keys['agent_use_langgraph']})
+      # Try to reload the graph module so the in-process graph picks up the change.
+      try:
+        import graph.va_graph as _vg
+        if hasattr(_vg, '_Wrapper'):
+          _vg._singleton = _vg._Wrapper()
+          applied = True
+        else:
+          applied = False
+      except Exception:
+        applied = False
+      # If we couldn't apply in-process, a restart is required
+      restart_required = not applied
+    else:
+      applied = False
+      restart_required = False
+  except Exception:
+    applied = False
+    restart_required = True
+
+  return JSONResponse({'ok': True, 'settings': saved, 'applied_in_process': bool(applied), 'restart_required': bool(restart_required)})
+
+
+@app.put('/api/settings')
+async def api_put_settings(request: Request, x_admin_token: str | None = Header(None)):
+  admin_token = os.getenv('SETTINGS_ADMIN_TOKEN')
+  if admin_token:
+    if not x_admin_token or x_admin_token != admin_token:
+      return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
+  else:
+    if not _is_local_request(request):
+      return JSONResponse({'ok': False, 'error': 'admin token not set; settings API restricted to localhost'}, status_code=403)
+  try:
+    body = await request.json()
+  except Exception:
+    return JSONResponse({'ok': False, 'error': 'invalid json'}, status_code=400)
+  # write to Supabase
+  try:
+    settings_put(body)
+    return JSONResponse({'ok': True, 'updated': list(body.keys())})
+  except Exception as e:
+    return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
+
+
+@app.post('/api/settings/refresh')
+async def api_post_settings_refresh(request: Request, x_admin_token: str | None = Header(None)):
+  admin_token = os.getenv('SETTINGS_ADMIN_TOKEN')
+  if admin_token:
+    if not x_admin_token or x_admin_token != admin_token:
+      return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
+  else:
+    if not _is_local_request(request):
+      return JSONResponse({'ok': False, 'error': 'admin token not set; settings API restricted to localhost'}, status_code=403)
+  try:
+    settings_refresh()
+    return JSONResponse({'ok': True, 'cache': 'cleared'})
+  except Exception as e:
+    return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
