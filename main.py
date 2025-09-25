@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
 # (2025-09-23 16:49 ET - Boot/Deploy Fix - solid)
 import os
+import sys
 from dotenv import load_dotenv
 load_dotenv()
+# Ensure the project root is on sys.path so package imports like `lib` resolve
+# when running inside containers (Railway, Docker) where the working directory
+# may not be the repository root.
+try:
+  _PROJECT_ROOT = Path(__file__).resolve().parent
+  if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+except Exception:
+  pass
 import logging
 _log = logging.getLogger("uvicorn.error")
 from pathlib import Path
@@ -60,6 +70,12 @@ if STATIC_DIR.exists():
 
 # include API routers
 app.include_router(agent_router)
+try:
+  from routes.fs import router as fs_router
+  if fs_router:
+    app.include_router(fs_router)
+except Exception:
+  pass
 
 
 # Simple file-backed settings API used by the UI. This keeps settings local to the

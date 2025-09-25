@@ -150,6 +150,12 @@
     };
   });
 
+// auto-mount the coding panel if present (progressive enhancement)
+try{
+  const mount = document.getElementById('coding-panel-mount');
+  if(mount && window.initCodingPanel){ window.initCodingPanel(mount); }
+}catch(_){}
+
   // Sessions stats panel
   async function loadSessionStats(){
     try{
