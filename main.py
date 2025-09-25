@@ -1,9 +1,22 @@
 #!/usr/bin/env python3
 # (2025-09-23 16:49 ET - Boot/Deploy Fix - solid)
+# Early sys.path hardening: make sure the repository root is the first entry
+# on sys.path before any other imports run. This is defensive for PaaS/Docker
+# environments where the working directory may not be the project root.
 import os
 import sys
+# calculate project root and ensure it's at the front of sys.path
+try:
+  _PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+  if _PROJECT_ROOT and _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+except Exception:
+  pass
+
 from dotenv import load_dotenv
 load_dotenv()
+# Ensure Path is available before we try to use it to modify sys.path.
+from pathlib import Path
 # Ensure the project root is on sys.path so package imports like `lib` resolve
 # when running inside containers (Railway, Docker) where the working directory
 # may not be the repository root.
