@@ -12,6 +12,16 @@ try:
     sys.path.insert(0, _PROJECT_ROOT)
 except Exception:
   pass
+# Ensure PYTHONPATH includes the app location so subprocesses / runtime loaders
+# that respect PYTHONPATH will find our package directories.
+try:
+  if 'PYTHONPATH' in os.environ:
+    if '/app' not in os.environ['PYTHONPATH']:
+      os.environ['PYTHONPATH'] = '/app:' + os.environ['PYTHONPATH']
+  else:
+    os.environ['PYTHONPATH'] = '/app'
+except Exception:
+  pass
 
 from dotenv import load_dotenv
 load_dotenv()
