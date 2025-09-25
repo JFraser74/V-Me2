@@ -366,7 +366,7 @@ async def showme():
 @app.get("/api/sessions")
 async def api_sessions(page: int = 1, page_size: int = 10):
   try:
-    from lib import supabase_client as _sbmod
+    from vme_lib import supabase_client as _sbmod
     sb = _sbmod._client()
   except Exception:
     sb = None
