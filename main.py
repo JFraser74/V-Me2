@@ -12,6 +12,23 @@ try:
     sys.path.insert(0, _PROJECT_ROOT)
 except Exception:
   pass
+# Early diagnostic output for PaaS debugging: print minimal environment info so
+# the deploy logs reveal the working directory, module search path, and whether
+# the application code (including `lib/`) is present at runtime.
+try:
+  import json as _json
+  print("DEBUG: CWD=", os.getcwd())
+  print("DEBUG: __file__=", __file__)
+  print("DEBUG: PROJECT_ROOT=", _PROJECT_ROOT)
+  # Print first few sys.path entries to avoid huge logs
+  print("DEBUG: sys.path[:5]=", _json.dumps(sys.path[:5]))
+  try:
+    _app_list = os.listdir('/app') if os.path.exists('/app') else []
+    print("DEBUG: /app entries=", _json.dumps(_app_list[:20]))
+  except Exception as _e:
+    print("DEBUG: /app list error=", _e)
+except Exception:
+  pass
 # Ensure PYTHONPATH includes the app location so subprocesses / runtime loaders
 # that respect PYTHONPATH will find our package directories.
 try:
