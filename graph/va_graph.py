@@ -7,6 +7,14 @@ responder so the rest of the app and tests can run in local development.
 
 from __future__ import annotations
 import os
+import sys
+try:
+    _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _PROJECT_ROOT and _PROJECT_ROOT not in sys.path:
+        sys.path.insert(0, _PROJECT_ROOT)
+except Exception:
+    pass
+import os
 from typing import Any, Dict, List, TypedDict, TYPE_CHECKING
 from lib.supabase_client import settings_get
 
