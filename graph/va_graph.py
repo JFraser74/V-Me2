@@ -16,7 +16,7 @@ except Exception:
     pass
 import os
 from typing import Any, Dict, List, TypedDict, TYPE_CHECKING
-from lib.supabase_client import settings_get
+from vme_lib.supabase_client import settings_get
 
 if TYPE_CHECKING:
     from langgraph.prebuilt import create_react_agent  # type: ignore

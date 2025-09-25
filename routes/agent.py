@@ -11,11 +11,11 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 
 import os
-from lib.supabase_client import safe_log_message, create_session, safe_log_tool_event, select_tool_events
+from vme_lib.supabase_client import safe_log_message, create_session, safe_log_tool_event, select_tool_events
 from graph.va_graph import get_graph
 from fastapi import Query
 from typing import List, Dict
-from lib import supabase_client as _sbmod
+from vme_lib import supabase_client as _sbmod
 from pathlib import Path
 
 # try to import workspace read/write tools; fall back to local FS
@@ -151,7 +151,7 @@ def messages(session_id: str = Query(...), limit: int = Query(12)) -> List[Dict]
 def api_sessions(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
     # Returns {total_sessions,total_messages,last_session,recent:[...]}; [] if SB not configured.
     try:
-        from lib import supabase_client as _sbmod2
+        from vme_lib import supabase_client as _sbmod2
         sb = _sbmod2._client()
     except Exception:
         sb = None

@@ -66,8 +66,8 @@ from fastapi import Request, Header
 import json
 from pathlib import Path
 import importlib
-from lib import supabase_client as _sbmod
-from lib.supabase_client import settings_list, settings_put, settings_refresh
+from vme_lib import supabase_client as _sbmod
+from vme_lib.supabase_client import settings_list, settings_put, settings_refresh
 
 app = FastAPI(title="V-Me2")
 
