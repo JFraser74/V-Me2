@@ -8,7 +8,7 @@ import json
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 from langchain_core.tools import tool
-from lib import supabase_client as _sbmod
+from vme_lib import supabase_client as _sbmod
 
 
 def _sb():

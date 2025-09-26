@@ -3,7 +3,7 @@ import sys
 # ensure project root is on sys.path
 sys.path.insert(0, '.')
 
-from lib import supabase_client
+from vme_lib import supabase_client
 
 # Provide a mock _client that exposes table(...).insert(...).execute()
 def _mock_client():

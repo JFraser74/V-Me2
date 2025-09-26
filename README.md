@@ -52,6 +52,18 @@ Environment variables you may set:
 - OPENAI_API_KEY (optional - enables LLM driven agent)
 - OPENAI_MODEL (optional, defaults to gpt-4o-mini)
 
+Agent runtime flags
+-------------------
+- AGENT_USE_LANGGRAPH: when set to '1' or 'true', the application will attempt
+	to construct the real LangGraph + OpenAI-backed agent (requires OPENAI_API_KEY).
+	This is intentionally off by default in test/dev environments to avoid
+	accidental external API calls. In CI you may set the repository secret
+	LANGGRAPH_ENABLED and OPENAI_API_KEY to enable full-agent tests.
+
+- DEV_LOCAL_LLM: when set to '1' or 'true', the `/agent/chat` endpoint returns
+	a deterministic local echo (no external LLM calls). Useful for development
+	and debugging when you don't want to use OpenAI.
+
 Developer tool examples (via tools/codespace.py and tools/supabase_tools.py):
 
 Python examples:
@@ -103,4 +115,25 @@ The repository contains a lightweight CI workflow at
 suite with `PYTHONPATH=.`. If you want to enable DB-backed end-to-end checks
 in CI, add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to the repository
 secrets; the workflow will inject them into the test run.
+
+Integration tests (LangGraph + OpenAI)
+-------------------------------------
+If you want to run integration tests that exercise the real LangGraph + OpenAI agent locally, do the following:
+
+1. Ensure you have a valid OpenAI API key available.
+
+2. Export the environment variables:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+export AGENT_USE_LANGGRAPH=1
+```
+
+3. Run only integration tests (those marked with pytest.mark.integration):
+
+```bash
+PYTHONPATH=. AGENT_USE_LANGGRAPH=1 pytest -q -m integration
+```
+
+CI note: the repository workflow contains an optional `integration` job that runs these tests when you set the repository secret `LANGGRAPH_ENABLED` and `OPENAI_API_KEY`.
 

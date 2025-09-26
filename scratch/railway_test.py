@@ -19,3 +19,8 @@ read_response = requests.post(read_url, headers=headers, json=read_query)
 print('Read test (projects):', read_response.json() if read_response.ok else read_response.text)
 
 # For write/edit/cleanup, we'd need a test resource; skip for now or use dashboard to confirm project linked to V-Me2 repo.
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8080))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
