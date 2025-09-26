@@ -94,6 +94,39 @@ def _check_openai_key():
   else:
     _log.info("OPENAI_API_KEY loaded: %s", masked)
 
+
+@app.on_event("startup")
+def _load_github_tokens_from_supabase():
+  """Load GitHub-related tokens from Supabase-backed settings into the
+  process environment if they aren't already set.
+
+  This allows tools run inside the container (or subprocesses) to pick up
+  a token stored in `va_settings` without requiring the runtime env to be
+  manually updated. Tokens are fetched with `settings_get(..., decrypt=True)`.
+  """
+  try:
+    keys = ["GITHUB_TOKEN", "GITHUB_PAT", "GITHUB_ACTOR"]
+    for k in keys:
+      # prefer existing environment value (explicit override), then Supabase
+      if os.getenv(k):
+        continue
+      try:
+        v = _sbmod.settings_get(k, default=None, decrypt=True)
+      except Exception:
+        v = None
+      if v:
+        # coerce non-strings
+        if not isinstance(v, str):
+          v = str(v)
+        os.environ[k] = v
+        try:
+          masked = f"{v[:4]}***{v[-4:]}"
+        except Exception:
+          masked = "***MASKED***"
+        _log.info("Loaded %s from settings: %s", k, masked)
+  except Exception as e:
+    _log.debug("_load_github_tokens_from_supabase: %s", e)
+
 # CORS (adjust as needed)
 app.add_middleware(
     CORSMiddleware,
