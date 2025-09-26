@@ -1,0 +1,45 @@
+name: Smoke (deployed)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Deployed base URL (e.g. https://your-app.up.railway.app)"
+        required: true
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: Preflight (non-fatal)
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          SETTINGS_ADMIN_TOKEN: ${{ secrets.CI_SETTINGS_ADMIN_TOKEN }}
+        run: |
+          chmod +x scripts/railway_preflight.sh || true
+          RUN_SMOKE=0 ./scripts/railway_preflight.sh || true
+
+      - name: Run smoke_all.sh
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          ADMIN_TOKEN: ${{ secrets.CI_SETTINGS_ADMIN_TOKEN }}
+          SMOKE_SAVE_DIR: smoke_out
+        run: |
+          chmod +x scripts/smoke_all.sh
+          ./scripts/smoke_all.sh --save "$SMOKE_SAVE_DIR"
+
+      - name: Upload smoke artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke_out
+          path: smoke_out
