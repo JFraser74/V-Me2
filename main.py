@@ -487,6 +487,51 @@ async def api_sessions(page: int = 1, page_size: int = 10):
   except Exception as e:
     return JSONResponse({"ok": False, "error": str(e), "page": page, "page_size": page_size}, status_code=500)
 
+
+@app.get('/api/_debug/status')
+async def api_debug_status():
+  """Temporary debug endpoint (remove after use).
+
+  Returns minimal info useful for diagnosing why admin tokens are not
+  accepted by the running server. This endpoint intentionally masks
+  secret values and only reports presence / masked form.
+  """
+  out = {
+    'supabase_connected': False,
+    'settings_admin_env': False,
+    'ci_admin_env': False,
+    'ci_in_settings': False,
+    'settings_in_settings': False,
+  }
+  try:
+    # env checks
+    if os.getenv('SETTINGS_ADMIN_TOKEN'):
+      out['settings_admin_env'] = True
+    if os.getenv('CI_SETTINGS_ADMIN_TOKEN'):
+      out['ci_admin_env'] = True
+    # supabase client check
+    try:
+      sb = _sbmod._client()
+      out['supabase_connected'] = bool(sb)
+    except Exception:
+      out['supabase_connected'] = False
+    # check values in va_settings if supabase available
+    if out['supabase_connected']:
+      try:
+        v = _sbmod.settings_get('CI_SETTINGS_ADMIN_TOKEN', default=None, decrypt=True)
+        out['ci_in_settings'] = bool(v)
+      except Exception:
+        out['ci_in_settings'] = False
+      try:
+        v2 = _sbmod.settings_get('SETTINGS_ADMIN_TOKEN', default=None, decrypt=True)
+        out['settings_in_settings'] = bool(v2)
+      except Exception:
+        out['settings_in_settings'] = False
+  except Exception as e:
+    return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
+  # mask booleans only — do not reveal tokens
+  return JSONResponse({'ok': True, 'debug': out})
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))  # Railway provides PORT
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
