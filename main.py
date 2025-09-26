@@ -516,7 +516,8 @@ async def api_debug_status():
     out['settings_admin_env'] = bool(os.getenv('SETTINGS_ADMIN_TOKEN'))
     out['ci_admin_env'] = bool(os.getenv('CI_SETTINGS_ADMIN_TOKEN'))
     out['supabase_url_env'] = bool(os.getenv('SUPABASE_URL'))
-    out['supabase_service_key_env'] = bool(os.getenv('SUPABASE_SERVICE_KEY'))
+    # accept either SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY (alias)
+    out['supabase_service_key_env'] = bool(os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_SERVICE_KEY'))
     out['supabase_anon_key_env'] = bool(os.getenv('SUPABASE_ANON_KEY'))
     out['database_url_env'] = bool(os.getenv('DATABASE_URL'))
 
