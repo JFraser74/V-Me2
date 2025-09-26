@@ -65,3 +65,45 @@ async function saveAndRefresh(adminToken, patch){
 	// optional toast
 	try{ if(window.toast) toast('Settings saved & refreshed ✓') }catch(e){}
 }
+
+// --- Minimal settings panel helpers ---
+async function showSettingsPanel(adminToken){
+	try{
+		const data = await getSettings(adminToken);
+		const settings = data.settings || data;
+		let panel = document.getElementById('vme-settings-panel');
+		if(!panel){
+			panel = document.createElement('div');
+			panel.id = 'vme-settings-panel';
+			panel.style.marginTop = '1rem';
+			document.currentScript.parentElement.appendChild(panel);
+		}
+		panel.innerHTML = `
+			<h3>Settings</h3>
+			<div>CI admin token (masked): <input id="ci_token" value="${settings.CI_SETTINGS_ADMIN_TOKEN||''}" placeholder="paste token to save" style="width:420px"/></div>
+			<div style="margin-top:.5rem"><button id="save_ci">Save CI token</button> <button id="rotate_admin">Rotate UI admin token</button> <span id="settings_status"></span></div>
+			<div style="font-size:90%;color:#666;margin-top:.5rem">Notes: Saving CI token writes to Supabase va_settings (masked). To change later, overwrite this value or use repo secrets for GitHub Actions as needed.</div>
+		`;
+		document.getElementById('save_ci').onclick = async ()=>{
+			const v = document.getElementById('ci_token').value.trim();
+			try{ document.getElementById('settings_status').textContent='…saving'; await saveAndRefresh(adminToken, {'CI_SETTINGS_ADMIN_TOKEN': v}); document.getElementById('settings_status').textContent='saved'; }catch(e){ document.getElementById('settings_status').textContent='error'; }
+		};
+		document.getElementById('rotate_admin').onclick = async ()=>{
+			try{
+				document.getElementById('settings_status').textContent='rotating…';
+				const r = await fetch('/api/settings/rotate_admin',{method:'POST', headers:{'X-Admin-Token': adminToken}});
+				const j = await r.json();
+				if(j && j.new_token){
+					// Show the new token to the user to copy
+					prompt('New admin token (copy this and store it somewhere secure):', j.new_token);
+					document.getElementById('settings_status').textContent='rotated';
+				} else {
+					document.getElementById('settings_status').textContent='rotate failed';
+				}
+			}catch(e){ document.getElementById('settings_status').textContent='error'; }
+		};
+	}catch(e){ console.error('showSettingsPanel',e); }
+}
+
+// Expose to window so operators can call showSettingsPanel(adminToken) from console
+window.showSettingsPanel = showSettingsPanel;
