@@ -496,26 +496,43 @@ async def api_debug_status():
   accepted by the running server. This endpoint intentionally masks
   secret values and only reports presence / masked form.
   """
+  # Provide a slightly more verbose diagnostic so we can tell whether the
+  # Supabase-related environment variables are present in the deployed
+  # environment (without revealing secret values).
   out = {
     'supabase_connected': False,
+    'supabase_client_error': None,
     'settings_admin_env': False,
     'ci_admin_env': False,
+    'supabase_url_env': False,
+    'supabase_service_key_env': False,
+    'supabase_anon_key_env': False,
+    'database_url_env': False,
     'ci_in_settings': False,
     'settings_in_settings': False,
   }
   try:
-    # env checks
-    if os.getenv('SETTINGS_ADMIN_TOKEN'):
-      out['settings_admin_env'] = True
-    if os.getenv('CI_SETTINGS_ADMIN_TOKEN'):
-      out['ci_admin_env'] = True
+    # env checks (presence only)
+    out['settings_admin_env'] = bool(os.getenv('SETTINGS_ADMIN_TOKEN'))
+    out['ci_admin_env'] = bool(os.getenv('CI_SETTINGS_ADMIN_TOKEN'))
+    out['supabase_url_env'] = bool(os.getenv('SUPABASE_URL'))
+    out['supabase_service_key_env'] = bool(os.getenv('SUPABASE_SERVICE_KEY'))
+    out['supabase_anon_key_env'] = bool(os.getenv('SUPABASE_ANON_KEY'))
+    out['database_url_env'] = bool(os.getenv('DATABASE_URL'))
+
     # supabase client check
     try:
       sb = _sbmod._client()
       out['supabase_connected'] = bool(sb)
-    except Exception:
+    except Exception as e:
       out['supabase_connected'] = False
-    # check values in va_settings if supabase available
+      try:
+        # truncate error to avoid overly large responses
+        out['supabase_client_error'] = str(e)[:200]
+      except Exception:
+        out['supabase_client_error'] = 'error'
+
+    # check values in va_settings only if client is available
     if out['supabase_connected']:
       try:
         v = _sbmod.settings_get('CI_SETTINGS_ADMIN_TOKEN', default=None, decrypt=True)
@@ -529,7 +546,8 @@ async def api_debug_status():
         out['settings_in_settings'] = False
   except Exception as e:
     return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
-  # mask booleans only — do not reveal tokens
+
+  # Return booleans/presence flags only; do not reveal secret values.
   return JSONResponse({'ok': True, 'debug': out})
 
 if __name__ == "__main__":
