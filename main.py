@@ -578,6 +578,61 @@ async def api_debug_supacall():
       msg = 'error'
     return JSONResponse({'ok': False, 'error': 'supabase query failed', 'client_error': msg}, status_code=500)
 
+
+# Temporary: inspect Railway using RAILWAY_API_TOKEN stored in settings or env.
+# WARNING: this endpoint is temporary for debugging and returns metadata only.
+@app.get('/api/_debug/railway_inspect')
+async def api_debug_railway_inspect():
+  import urllib.request, urllib.error, json
+  # Try env first, then Supabase-backed settings
+  token = os.getenv('RAILWAY_API_TOKEN')
+  try:
+    if not token:
+      token = _sbmod.settings_get('RAILWAY_API_TOKEN', default=None, decrypt=True)
+  except Exception:
+    token = token
+
+  if not token:
+    return JSONResponse({'ok': False, 'error': 'RAILWAY_API_TOKEN not found in env or settings'}, status_code=404)
+
+  headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+  endpoints = [
+    ('projects', 'https://api.railway.app/v1/projects'),
+    ('services', 'https://api.railway.app/v1/services')
+  ]
+  out = {'ok': True, 'summary': []}
+  for name, ep in endpoints:
+    try:
+      req = urllib.request.Request(ep, headers=headers, method='GET')
+      with urllib.request.urlopen(req, timeout=15) as r:
+        data = r.read().decode('utf-8')
+      try:
+        obj = json.loads(data)
+      except Exception:
+        obj = {'_raw': data[:1000]}
+      # Summarize: don't return tokens or secrets
+      summary = {'endpoint': name}
+      if isinstance(obj, dict):
+        summary['top_keys'] = list(obj.keys())[:10]
+        if isinstance(obj.get('projects'), list):
+          summary['projects_count'] = len(obj['projects'])
+          summary['projects_sample'] = [{ 'id': p.get('id'), 'name': p.get('name') } for p in obj['projects'][:5]]
+        if isinstance(obj.get('data'), list):
+          summary['data_count'] = len(obj.get('data'))
+      elif isinstance(obj, list):
+        summary['list_count'] = len(obj)
+      out['summary'].append(summary)
+    except urllib.error.HTTPError as he:
+      try:
+        body = he.read().decode('utf-8')
+      except Exception:
+        body = ''
+      out['summary'].append({'endpoint': name, 'http_error': he.code, 'body_snippet': body[:800]})
+    except Exception as e:
+      out['summary'].append({'endpoint': name, 'error': str(e)[:400]})
+
+  return JSONResponse(out)
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))  # Railway provides PORT
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
