@@ -206,11 +206,42 @@ def _is_local_request(request: Request) -> bool:
   return host in ("127.0.0.1", "::1", "localhost", None)
 
 
+def _allowed_admin_tokens():
+  """Return a set of admin tokens that are accepted by the server.
+
+  This supports two kinds of tokens:
+    - SETTINGS_ADMIN_TOKEN (rotatable via UI / Supabase or environment)
+    - CI_SETTINGS_ADMIN_TOKEN (optional long-lived token used by CI/workflows)
+
+  The function checks both environment variables and the Supabase-backed
+  settings store (via settings_get). Any non-empty values are returned in a
+  set. If the set is empty the server treats settings endpoints as localhost-only.
+  """
+  out = set()
+  try:
+    # primary (rotatable) admin token: env override first, then Supabase-backed
+    t = os.getenv('SETTINGS_ADMIN_TOKEN') or _sbmod.settings_get('SETTINGS_ADMIN_TOKEN')
+    if t:
+      out.add(t)
+  except Exception:
+    pass
+  try:
+    # optional CI-only token kept stable for CI so you don't need to update
+    # GitHub/GitLab secrets every time you rotate the UI token.
+    t2 = os.getenv('CI_SETTINGS_ADMIN_TOKEN') or _sbmod.settings_get('CI_SETTINGS_ADMIN_TOKEN')
+    if t2:
+      out.add(t2)
+  except Exception:
+    pass
+  return out
+
+
 @app.get('/api/settings')
 async def api_get_settings(request: Request, x_admin_token: str | None = Header(None)):
-  admin_token = os.getenv('SETTINGS_ADMIN_TOKEN')
-  if admin_token:
-    if not x_admin_token or x_admin_token != admin_token:
+  # Admin token may be configured as an environment variable, or managed in va_settings via the UI.
+  allowed = _allowed_admin_tokens()
+  if allowed:
+    if not x_admin_token or x_admin_token not in allowed:
       return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
   else:
     # Allow only local calls when no admin token is configured
@@ -230,9 +261,9 @@ async def api_get_settings(request: Request, x_admin_token: str | None = Header(
 @app.post('/api/settings')
 async def api_post_settings(request: Request, payload: dict, x_admin_token: str | None = Header(None)):
   # validate minimal types
-  admin_token = os.getenv('SETTINGS_ADMIN_TOKEN')
-  if admin_token:
-    if not x_admin_token or x_admin_token != admin_token:
+  allowed = _allowed_admin_tokens()
+  if allowed:
+    if not x_admin_token or x_admin_token not in allowed:
       return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
   else:
     # Allow only local calls when no admin token is configured
@@ -289,9 +320,9 @@ async def api_post_settings(request: Request, payload: dict, x_admin_token: str 
 
 @app.put('/api/settings')
 async def api_put_settings(request: Request, x_admin_token: str | None = Header(None)):
-  admin_token = os.getenv('SETTINGS_ADMIN_TOKEN')
-  if admin_token:
-    if not x_admin_token or x_admin_token != admin_token:
+  allowed = _allowed_admin_tokens()
+  if allowed:
+    if not x_admin_token or x_admin_token not in allowed:
       return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
   else:
     if not _is_local_request(request):
@@ -310,9 +341,9 @@ async def api_put_settings(request: Request, x_admin_token: str | None = Header(
 
 @app.post('/api/settings/refresh')
 async def api_post_settings_refresh(request: Request, x_admin_token: str | None = Header(None)):
-  admin_token = os.getenv('SETTINGS_ADMIN_TOKEN')
-  if admin_token:
-    if not x_admin_token or x_admin_token != admin_token:
+  allowed = _allowed_admin_tokens()
+  if allowed:
+    if not x_admin_token or x_admin_token not in allowed:
       return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
   else:
     if not _is_local_request(request):
@@ -322,6 +353,41 @@ async def api_post_settings_refresh(request: Request, x_admin_token: str | None 
     return JSONResponse({'ok': True, 'cache': 'cleared'})
   except Exception as e:
     return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
+
+
+@app.post('/api/settings/rotate_admin')
+async def api_rotate_admin(request: Request, x_admin_token: str | None = Header(None)):
+  """Generate and persist a new SETTINGS_ADMIN_TOKEN. Requires existing admin token (or localhost access when none set).
+
+  Returns the new token in the response so the operator can copy it and, if desired, set it as an environment variable.
+  """
+  admin_token = os.getenv('SETTINGS_ADMIN_TOKEN') or _sbmod.settings_get('SETTINGS_ADMIN_TOKEN')
+  if admin_token:
+    if not x_admin_token or x_admin_token != admin_token:
+      return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
+  else:
+    if not _is_local_request(request):
+      return JSONResponse({'ok': False, 'error': 'admin token not set; settings API restricted to localhost'}, status_code=403)
+
+  try:
+    import secrets
+    new_token = secrets.token_urlsafe(32)
+  except Exception:
+    import uuid
+    new_token = str(uuid.uuid4())
+
+  # Try to persist via settings_put (Supabase-backed) and fall back to file-backed _save_settings
+  try:
+    settings_put({'SETTINGS_ADMIN_TOKEN': new_token})
+    return JSONResponse({'ok': True, 'new_token': new_token})
+  except Exception as e:
+    try:
+      saved = _save_settings({'SETTINGS_ADMIN_TOKEN': new_token})
+      if saved is None:
+        raise RuntimeError('failed to persist locally')
+      return JSONResponse({'ok': True, 'new_token': new_token, 'note': 'saved to local settings file'})
+    except Exception as ee:
+      return JSONResponse({'ok': False, 'error': 'failed to persist new token', 'detail': str(ee)}, status_code=500)
 
 @app.get("/", response_class=HTMLResponse)
 async def root():

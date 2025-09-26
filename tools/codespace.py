@@ -10,6 +10,14 @@ from pathlib import Path
 import subprocess, shlex
 from pydantic import BaseModel
 from langchain_core.tools import tool
+import shlex
+import subprocess
+import os
+
+from typing import Optional
+
+# Import the helper script if present; we will call it via subprocess for safety.
+GIT_PUSH_HELPER = Path(__file__).resolve().parents[1] / 'tools' / 'git_push.py'
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -129,3 +137,27 @@ def git_commit_tool(message: str, add_all: bool = True, confirm: bool = False) -
     for c in cmds:
         out.append(_run(c))
     return "\n\n".join(out)
+
+
+class PushArgs(BaseModel):
+    remote: Optional[str] = "origin"
+    branch: Optional[str] = "main"
+    confirm: bool = False
+
+
+@tool("git_push", args_schema=PushArgs)
+def git_push_tool(remote: str = "origin", branch: str = "main", confirm: bool = False) -> str:
+    """Push current HEAD to a remote branch. Requires confirm=True.
+
+    Uses the helper script `tools/git_push.py` so it behaves the same locally and in CI.
+    """
+    if not confirm:
+        return "DRY_RUN: set confirm=True to push."
+    if not GIT_PUSH_HELPER.exists():
+        return "git_push helper not available"
+    cmd = [str(GIT_PUSH_HELPER), '--remote', remote, '--branch', branch]
+    try:
+        proc = subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True, check=True)
+        return proc.stdout + ("\n" + proc.stderr if proc.stderr else "")
+    except subprocess.CalledProcessError as e:
+        return f"git_push failed: exit {e.returncode}\n{e.stdout}\n{e.stderr}"

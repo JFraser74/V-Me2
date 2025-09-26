@@ -238,6 +238,35 @@ try{
 
   // wire admin token saved earlier to load settings fields in the S pane
   $('#saveadmintoken') && ($('#saveadmintoken').onclick = () => { const t = $('#adminToken').value.trim(); if(t) { localStorage.setItem('X_ADMIN_TOKEN', t); alert('Admin token saved locally.'); } });
+  // Rotate admin token via API
+  const RAILWAY_VARS_URL = 'https://railway.com/project/451db926-5f6b-4131-9035-f4a9481cad5b/service/3392195a-b847-48a0-bd42-ebfd5138770a/variables?environmentId=6a7439e0-62ec-4331-b6f5-5d0777955795';
+  $('#rotateAdminBtn') && ($('#rotateAdminBtn').onclick = async () => {
+    if (!confirm('Rotate admin token? This will generate a new token and save it to settings. Current UI-saved token will no longer work. Continue?')) return;
+    const token = $('#adminToken') ? $('#adminToken').value.trim() : '';
+    const headers = {'content-type':'application/json'};
+    if (token) headers['X-Admin-Token'] = token;
+    try {
+      const r = await fetch('/api/settings/rotate_admin', {method:'POST', headers});
+      const body = await r.json();
+      if (!r.ok || !body.ok) { alert('Rotate failed: '+(body.error||JSON.stringify(body))); return; }
+      const newtok = body.new_token || '';
+      const el = $('#rotatedToken'); if (el) el.textContent = 'New token generated — copy and store securely.';
+      // Show new token briefly and offer to copy
+      if (newtok) {
+        const save = confirm('New admin token generated. Click OK to copy it to clipboard (and optionally save to local storage).');
+        if (save) {
+          try { await navigator.clipboard.writeText(newtok); alert('New token copied to clipboard — paste/store it in Railway env and GitHub secret.'); } catch(e) { alert('Copy failed — token: '+newtok); }
+          const store = confirm('Save the new token to localStorage for this browser? (Not secure for shared machines)');
+          if (store) { localStorage.setItem('X_ADMIN_TOKEN', newtok); $('#adminToken').value = newtok; }
+        }
+        // Open Railway variables page to allow quick paste/update
+        if (confirm('Open Railway variables page to update SETTINGS_ADMIN_TOKEN now?')) {
+          try { window.open(RAILWAY_VARS_URL, '_blank'); } catch(e) { /* ignore */ }
+        }
+      }
+      await loadSettings();
+    } catch(e) { alert('Rotate error: '+e); }
+  });
   $('#loadsettings') && ($('#loadsettings').onclick = async ()=>{
     const res = await ui_load_settings();
     if (!res.ok) { alert('load failed: '+(res.error||JSON.stringify(res))); return; }

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 import os
 import sys
 try:
@@ -113,11 +113,14 @@ def chat(payload: ChatIn):
 
 
 @router.get("/tool_events")
-def tool_events(session_id: str, limit: int = 10):
-    """Return recent tool events for a session (read-only)."""
+def tool_events(session_id: str, limit: int = Query(10, ge=1, le=50)):
+    """
+    Return recent tool events for a session.
+    `limit` is clamped to [1, 50] using FastAPI's Query validation.
+    """
     try:
-        rows = select_tool_events(session_id, limit=limit)
-        return rows
+        events = select_tool_events(session_id=session_id, limit=int(limit))
+        return {"items": events or []}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
