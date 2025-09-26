@@ -1,0 +1,27 @@
+name: Nightly Smoke
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # daily at 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  nightly-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - name: Run nightly smoke
+        env:
+          BASE_URL: ${{ secrets.DEPLOYED_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.CI_SETTINGS_ADMIN_TOKEN }}
+          SMOKE_SAVE_DIR: smoke_out
+        run: |
+          chmod +x scripts/smoke_all.sh
+          ./scripts/smoke_all.sh --save "$SMOKE_SAVE_DIR"
+      - name: Upload smoke artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-smoke-out
+          path: smoke_out
