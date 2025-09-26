@@ -1,0 +1,41 @@
+name: Run Smoke on push (temporary)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Set base URL env (temporary)
+        run: |
+          echo "BASE_URL_OVERRIDE=https://virtualme2.up.railway.app" >> $GITHUB_ENV
+
+      - name: Preflight (non-fatal)
+        env:
+          BASE_URL: ${{ env.BASE_URL_OVERRIDE }}
+          SETTINGS_ADMIN_TOKEN: ${{ secrets.CI_SETTINGS_ADMIN_TOKEN }}
+        run: |
+          chmod +x scripts/railway_preflight.sh || true
+          RUN_SMOKE=0 ./scripts/railway_preflight.sh || true
+
+      - name: Run smoke_all.sh
+        env:
+          BASE_URL: ${{ env.BASE_URL_OVERRIDE }}
+          ADMIN_TOKEN: ${{ secrets.CI_SETTINGS_ADMIN_TOKEN }}
+          SMOKE_SAVE_DIR: smoke_out
+        run: |
+          chmod +x scripts/smoke_all.sh
+          ./scripts/smoke_all.sh --save "$SMOKE_SAVE_DIR"
+
+      - name: Upload smoke artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke_out
+          path: smoke_out
