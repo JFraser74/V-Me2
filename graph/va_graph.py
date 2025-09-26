@@ -145,6 +145,8 @@ def _build_graph():
             git_status_tool,
             git_diff_tool,
             git_commit_tool,
+            # add git_push_tool so the agent can push when explicitly confirmed
+            getattr(globals().get('git_push_tool', None), '__call__', None) or None,
             sb_select_tool,
             sb_upsert_tool,
         ]

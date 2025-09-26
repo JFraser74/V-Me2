@@ -2,6 +2,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Header, Query
 from pydantic import BaseModel
 from typing import Optional
+from vme_lib import supabase_client as sbmod
 
 # We’ll reuse the existing tools implementation for safe pathing and git.
 try:
@@ -49,7 +50,8 @@ class WriteIn(BaseModel):
 def write(payload: WriteIn, x_admin_token: Optional[str] = Header(None, alias="X-Admin-Token")):
     # Require admin token for confirm writes
     from os import getenv
-    admin = getenv("SETTINGS_ADMIN_TOKEN")
+    # Support admin token from env or from va_settings so the UI can manage it.
+    admin = getenv("SETTINGS_ADMIN_TOKEN") or sbmod.settings_get('SETTINGS_ADMIN_TOKEN')
     if payload.confirm and (not admin or x_admin_token != admin):
         raise HTTPException(status_code=403, detail="Admin token required for confirm=True")
     require_tools()
@@ -77,7 +79,7 @@ class CommitIn(BaseModel):
 @router.post("/git/commit")
 def git_commit(payload: CommitIn, x_admin_token: Optional[str] = Header(None, alias="X-Admin-Token")):
     from os import getenv
-    admin = getenv("SETTINGS_ADMIN_TOKEN")
+    admin = getenv("SETTINGS_ADMIN_TOKEN") or sbmod.settings_get('SETTINGS_ADMIN_TOKEN')
     if payload.confirm and (not admin or x_admin_token != admin):
         raise HTTPException(status_code=403, detail="Admin token required for confirm=True")
     require_tools()

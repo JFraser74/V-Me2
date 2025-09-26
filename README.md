@@ -1,3 +1,96 @@
+## Production checklist and smoke steps
+
+### Quick smoke (Railway / deployed)
+### Admin token: generate, set, and use
+
+The settings API is protected by a single admin token. The server expects the environment variable `SETTINGS_ADMIN_TOKEN` to be set in the running service; the client (or `scripts/smoke_all.sh`) must send the same token in the `X-Admin-Token` header. If the server has no `SETTINGS_ADMIN_TOKEN` configured it will restrict admin endpoints to localhost and return 403 for remote calls.
+
+Steps to generate and set the Admin Token:
+
+1. Generate a token locally (example options):
+
+```bash
+# UUID
+python3 -c 'import uuid; print(uuid.uuid4())'
+
+# Strong random hex
+openssl rand -hex 32
+```
+
+2. Set it in Railway (UI):
+	- Open your Railway project → Variables (Environment) → Add variable
+	- Name: `SETTINGS_ADMIN_TOKEN`  Value: `<the-token-you-generated>`  Save
+
+		Or with the GitHub CLI (store a stable CI token as a repository secret so workflows
+		don't need to change when you rotate the UI token):
+
+	```bash
+	# Preferred: create a stable CI secret once (used by GitHub Actions)
+	gh secret set CI_SETTINGS_ADMIN_TOKEN --body '<a-strong-ci-token>'
+
+	# Your runtime (Railway) should still use SETTINGS_ADMIN_TOKEN so it can be rotated via the UI
+	```
+
+3. Restart or redeploy your Railway service so the env var is available to the running app.
+
+4. Run the smoke (from your laptop or CI):
+
+```bash
+BASE_URL="https://<your-railway-domain>" \
+ADMIN_TOKEN="<the-token-you-generated>" \
+./scripts/smoke_all.sh --save .smoke_out
+```
+
+Notes
+- Passing `ADMIN_TOKEN` to `scripts/smoke_all.sh` sets the `X-Admin-Token` header for requests, but it does not set the server-side environment variable. The server must have `SETTINGS_ADMIN_TOKEN` set (step 2 above).
+- If the server returns `403` with message `admin token not set; settings API restricted to localhost` it means `SETTINGS_ADMIN_TOKEN` is not configured in the running service.
+- For full end-to-end settings tests you also need the Supabase env vars set in Railway (`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`) and an `APP_ENCRYPTION_KEY` if you want encryption exercised.
+
+### Quick rotate + update Railway
+
+You can rotate the admin token locally (the server accepts localhost rotations even when no admin token is configured). Example:
+
+```bash
+# Start local server (or ensure it is running)
+uvicorn main:app --host 127.0.0.1 --port 8000 &
+
+# Rotate (localhost allowed)
+curl -X POST http://127.0.0.1:8000/api/settings/rotate_admin | jq -r
+```
+
+After rotating, copy the returned `new_token` and update your Railway variables page (open the Variables tab for the service) at:
+
+https://railway.com/project/451db926-5f6b-4131-9035-f4a9481cad5b/service/3392195a-b847-48a0-bd42-ebfd5138770a/variables?environmentId=6a7439e0-62ec-4331-b6f5-5d0777955795
+
+	Then update the GitHub secret `CI_SETTINGS_ADMIN_TOKEN` (or set `SETTINGS_ADMIN_TOKEN` to the same CI token) so CI and the manual-dispatch smoke job use the stable CI token.
+
+## Production checklist (Railway)
+
+Set these environment variables in Railway (or your platform of choice):
+
+- SUPABASE_URL (required)
+- SUPABASE_SERVICE_ROLE_KEY (required)
+- SETTINGS_ADMIN_TOKEN (random strong token)
+- APP_ENCRYPTION_KEY (Fernet key) — generate with `python scripts/generate_fernet_key.py`
+- OPENAI_MODEL (e.g. `gpt-4o-mini`)
+- AGENT_TOOLS_ENABLED (1 to enable agent tools)
+- (Optional) OPENAI_API_KEY for bootstrap; store future keys via the Settings API
+
+Smoke steps after deployment:
+
+1) Health check
+	curl -fsS "$APP_URL/health" && echo " <- /health OK"
+
+2) PUT settings then refresh
+	curl -sS -X PUT "$APP_URL/api/settings" \
+	  -H "X-Admin-Token: $SETTINGS_ADMIN_TOKEN" -H "content-type: application/json" \
+	  -d '{"OPENAI_API_KEY":"sk-REDACTED","OPENAI_MODEL":"gpt-4o-mini"}'
+
+	curl -sS -X POST "$APP_URL/api/settings/refresh" -H "X-Admin-Token: $SETTINGS_ADMIN_TOKEN"
+
+3) Chat smoke
+	curl -sS -X POST "$APP_URL/agent/chat" -H 'content-type: application/json' -d '{"message":"ping","label":"prod-smoke"}'
+
 # V-Me2
 Virtual Assistant
 

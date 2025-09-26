@@ -41,3 +41,27 @@
 		}
 	}
 })();
+
+// Settings helpers (PUT + POST /refresh)
+async function getSettings(adminToken){
+	const r = await fetch('/api/settings', { headers:{'X-Admin-Token': adminToken}});
+	if(!r.ok) throw new Error('settings get failed');
+	return await r.json();
+}
+
+async function putSettings(adminToken, patch){
+	const r = await fetch('/api/settings',{method:'PUT',headers:{'content-type':'application/json','X-Admin-Token':adminToken},body:JSON.stringify(patch)});
+	if(!r.ok) throw new Error(await r.text());
+}
+
+async function refreshSettings(adminToken){
+	const r = await fetch('/api/settings/refresh',{method:'POST', headers:{'X-Admin-Token':adminToken}});
+	if(!r.ok) throw new Error(await r.text());
+}
+
+async function saveAndRefresh(adminToken, patch){
+	await putSettings(adminToken, patch);
+	await refreshSettings(adminToken);
+	// optional toast
+	try{ if(window.toast) toast('Settings saved & refreshed ✓') }catch(e){}
+}
