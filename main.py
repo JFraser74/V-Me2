@@ -551,6 +551,33 @@ async def api_debug_status():
   # Return booleans/presence flags only; do not reveal secret values.
   return JSONResponse({'ok': True, 'debug': out})
 
+
+@app.get('/api/_debug/supacall')
+async def api_debug_supacall():
+  """Make a minimal authenticated Supabase call (read va_settings) and
+  return a concise success/failure result. This helps surface connection
+  errors from the deployed process without revealing any secret values.
+  """
+  try:
+    sb = _sbmod._client()
+  except Exception as e:
+    return JSONResponse({'ok': False, 'error': 'failed to construct supabase client', 'client_error': str(e)[:400]}, status_code=500)
+  if not sb:
+    return JSONResponse({'ok': False, 'error': 'supabase client not configured (missing url/key)'} , status_code=500)
+  try:
+    # perform a lightweight read
+    res = sb.table('va_settings').select('key').limit(1).execute()
+    # success: don't return rows to avoid exposing values
+    return JSONResponse({'ok': True, 'rows_returned': bool(getattr(res, 'data', None)), 'count': getattr(res, 'count', None)})
+  except Exception as e:
+    # truncate the error message for brevity; do not include secrets
+    msg = None
+    try:
+      msg = str(e)[:500]
+    except Exception:
+      msg = 'error'
+    return JSONResponse({'ok': False, 'error': 'supabase query failed', 'client_error': msg}, status_code=500)
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))  # Railway provides PORT
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
