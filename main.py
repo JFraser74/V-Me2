@@ -383,6 +383,12 @@ async def api_post_settings_refresh(request: Request, x_admin_token: str | None 
       return JSONResponse({'ok': False, 'error': 'admin token not set; settings API restricted to localhost'}, status_code=403)
   try:
     settings_refresh()
+    # Reload tokens from Supabase into the process environment so updates
+    # to GITHUB_TOKEN / GITHUB_PAT via the UI take effect without restart.
+    try:
+      _load_github_tokens_from_supabase()
+    except Exception:
+      pass
     return JSONResponse({'ok': True, 'cache': 'cleared'})
   except Exception as e:
     return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
