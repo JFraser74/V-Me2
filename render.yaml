@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: vme2-web
+    env: python
+    repo: https://github.com/JFraser74/V-Me2
+    branch: main
+    plan: starter
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python -m uvicorn main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      RUNTIME_ENV: production
