@@ -24,3 +24,14 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
+
+# install (if not installed) — check Railway docs for installer
+# login
+railway login
+
+# link/init project from this repo
+railway init            # or `railway link` to attach to existing project
+# create a new service (if CLI supports)
+railway service create <service-name>  # CLI command may differ; check `railway help`
+# set a variable in the current Railway project (recommended over putting tokens in files)
+railway variables set RAILWAY_PAT "paste_token_here"
