@@ -468,7 +468,7 @@ async def showme():
     return "<h1>Show Me</h1><p>missing static/show_me_window.html</p>"
 
 
-@app.get("/api/sessions")
+@app.get('/api/sessions')
 async def api_sessions(page: int = 1, page_size: int = 10):
   try:
     from vme_lib import supabase_client as _sbmod
@@ -478,10 +478,10 @@ async def api_sessions(page: int = 1, page_size: int = 10):
   if not sb:
     return JSONResponse({"ok": True, "counts": None, "page": page, "page_size": page_size})
   try:
-    c1 = sb.table("va_sessions").select("*", count="exact").limit(1).execute()
-    c2 = sb.table("va_messages").select("*", count="exact").limit(1).execute()
-    sessions_count = getattr(c1, "count", None)
-    messages_count = getattr(c2, "count", None)
+    c1 = sb.table('va_sessions').select('*', count='exact').limit(1).execute()
+    c2 = sb.table('va_messages').select('*', count='exact').limit(1).execute()
+    sessions_count = getattr(c1, 'count', None)
+    messages_count = getattr(c2, 'count', None)
     return JSONResponse({"ok": True, "counts": {"va_sessions": sessions_count, "va_messages": messages_count},
                "page": page, "page_size": page_size})
   except Exception as e:
@@ -632,6 +632,7 @@ async def api_debug_railway_inspect():
       out['summary'].append({'endpoint': name, 'error': str(e)[:400]})
 
   return JSONResponse(out)
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))  # Railway provides PORT
