@@ -55,3 +55,8 @@ Thumbs.db
 .vscode/
 .idea/
 .vme2_settings.json
+
+# Railway local artifacts
+railway_*.txt
+railway_variables.json
+.smoke_out/
