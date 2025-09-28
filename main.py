@@ -154,8 +154,8 @@ except Exception:
 try:
   from routes.bridge import router as bridge_router
   if bridge_router:
-    # mount under /api/bridge for all bridge endpoints
-    app.include_router(bridge_router, prefix='/api/bridge')
+    # router defines full paths (e.g. /api/bridge/...), include as-is to avoid double-prefix
+    app.include_router(bridge_router)
 except Exception:
   # Do not fail startup if bridge router is not present on the branch
   pass
