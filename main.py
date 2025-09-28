@@ -150,14 +150,12 @@ try:
 except Exception:
   pass
 
-# Ensure bridge router is mounted (some branches may omit it)
+# Ensure bridge router is mounted (safe include)
 try:
   from routes.bridge import router as bridge_router
   if bridge_router:
-    # router defines full paths (e.g. /api/bridge/...), include as-is to avoid double-prefix
     app.include_router(bridge_router)
 except Exception:
-  # Do not fail startup if bridge router is not present on the branch
   pass
 
 
