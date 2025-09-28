@@ -29,3 +29,25 @@ This document describes the runtime requirements for admin tokens, Supabase, and
   - `/api/_debug/supacall` and `/api/_debug/railway_inspect` exist to help diagnose deployment issues (they are intentionally minimal and do not return secret values).
 
 Keep secrets out of git and use your platform secret manager for production deployments.
+
+## Importing legacy VA-min data into V-Me2
+
+Recommended approach: keep VA-min as a read-only legacy source and import selected tables into V-Me2 via a controlled ETL. Do NOT merge the DBs live.
+
+Quick import steps:
+
+1. Set a VA_MIN_DSN in your environment or pass via --source-dsn. Optionally store it encrypted in `va_settings` via `--store-config`.
+2. Run the importer in dry-run mode first:
+
+```bash
+VA_MIN_DSN="postgres://..." python scripts/import_va_min.py --source-table messages --target-table va_messages --key-columns message_id --limit 1000 --dry-run
+```
+
+3. If the dry-run looks good, run without `--dry-run` and with an appropriate --batch-size. Monitor the console output and the `va_settings` mapping if you have one.
+
+4. After import, check the V-Me2 tables and the optional `legacy_map` table to ensure auditability.
+
+Notes:
+- The importer is idempotent when key-columns identify the row uniquely. It upserts rows and skips/updates depending on presence.
+- For embeddings you may want to re-embed lazily in V-Me2 if models differ.
+- If you want tokens or DSNs stored, use the `APP_ENCRYPTION_KEY` so they are encrypted in Supabase.
