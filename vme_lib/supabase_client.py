@@ -169,7 +169,16 @@ def settings_put(mapping: Dict[str, Any]):
             payload = json.dumps(v).encode("utf-8")
             token = f.encrypt(payload)
             store_v = "enc:v1:" + base64.b64encode(token).decode("ascii")
-        sb.table("va_settings").upsert({"key": k, "value": store_v}).on_conflict("key").execute()
+        try:
+            # preferred (newer supabase-py)
+            sb.table("va_settings").upsert({"key": k, "value": store_v}).on_conflict("key").execute()
+        except AttributeError:
+            # older client: emulate upsert by deleting existing key then inserting
+            try:
+                sb.table("va_settings").delete().eq("key", k).execute()
+            except Exception:
+                pass
+            sb.table("va_settings").insert({"key": k, "value": store_v}).execute()
         _SETTINGS_CACHE.pop(k, None)
 
 def settings_list() -> Dict[str, Any]:

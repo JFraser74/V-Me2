@@ -150,6 +150,16 @@ try:
 except Exception:
   pass
 
+# Ensure bridge router is mounted (some branches may omit it)
+try:
+  from routes.bridge import router as bridge_router
+  if bridge_router:
+    # router defines full paths (e.g. /api/bridge/...), include as-is to avoid double-prefix
+    app.include_router(bridge_router)
+except Exception:
+  # Do not fail startup if bridge router is not present on the branch
+  pass
+
 
 # Simple file-backed settings API used by the UI. This keeps settings local to the
 # repository (no external dependency) and allows toggling features such as
