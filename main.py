@@ -65,6 +65,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.staticfiles import StaticFiles as StarletteStaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from routes.agent import router as agent_router
@@ -198,7 +199,21 @@ app.add_middleware(
 # Optional static mount (only if folder exists)
 STATIC_DIR = Path(__file__).parent / "static"
 if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+  # StaticFiles sometimes bypasses application middleware; to guarantee
+  # the Cache-Control header for our hot asset after deploy, subclass
+  # StaticFiles and explicitly set the header for the targeted file.
+  class NoStoreStatic(StarletteStaticFiles):
+    async def get_response(self, path, scope):
+      resp = await super().get_response(path, scope)
+      try:
+        # Narrow to the hot asset we care about
+        if path == "show_me_window.js" or path.endswith("/show_me_window.js"):
+          resp.headers["Cache-Control"] = "no-store"
+      except Exception:
+        pass
+      return resp
+
+  app.mount("/static", NoStoreStatic(directory=str(STATIC_DIR)), name="static")
 
 # include API routers
 app.include_router(agent_router)
