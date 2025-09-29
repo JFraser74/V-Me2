@@ -40,8 +40,14 @@ try:
 except Exception:
   pass
 
-from dotenv import load_dotenv
-load_dotenv()
+from dotenv import load_dotenv, find_dotenv
+# Locate .env (if present) so we can log which file was used at startup.
+DOTENV_PATH = find_dotenv() or None
+if DOTENV_PATH:
+  load_dotenv(dotenv_path=DOTENV_PATH)
+else:
+  # fall back to default behavior (also handles env var already present in shell)
+  load_dotenv()
 # Ensure Path is available before we try to use it to modify sys.path.
 from pathlib import Path
 # Ensure the project root is on sys.path so package imports like `lib` resolve
@@ -83,6 +89,14 @@ def _check_openai_key():
   key = os.getenv("OPENAI_API_KEY")
   if not key:
     _log.warning("OPENAI_API_KEY: MISSING (set it in .env or the environment)")
+    # Log which .env (if any) was used to attempt loading environment variables
+    try:
+      if DOTENV_PATH:
+        _log.info(".env loaded from: %s", DOTENV_PATH)
+      else:
+        _log.info(".env file: not found or not loaded")
+    except Exception:
+      pass
     return
   # Mask but show a short prefix/suffix for debugging without exposing the key
   try:
@@ -93,6 +107,11 @@ def _check_openai_key():
     _log.warning("OPENAI_API_KEY appears to be a project key (sk-proj-...). This type of key cannot be used for API calls. Replace with a standard sk-... API key. %s", masked)
   else:
     _log.info("OPENAI_API_KEY loaded: %s", masked)
+    try:
+      if DOTENV_PATH:
+        _log.info(".env loaded from: %s", DOTENV_PATH)
+    except Exception:
+      pass
 
 
 @app.on_event("startup")
@@ -126,6 +145,46 @@ def _load_github_tokens_from_supabase():
         _log.info("Loaded %s from settings: %s", k, masked)
   except Exception as e:
     _log.debug("_load_github_tokens_from_supabase: %s", e)
+
+
+@app.on_event("startup")
+def _load_openai_key_from_supabase():
+  """If OPENAI_API_KEY isn't present in the environment, attempt to load it
+  from Supabase-backed settings (va_settings) using the existing
+  vme_lib.supabase_client.settings_get helper. This mirrors how GitHub
+  tokens are loaded and keeps secrets in Supabase if preferred.
+  """
+  # Opt-in: only attempt to bootstrap OPENAI_API_KEY from Supabase if the
+  # environment explicitly enables it. This avoids making network calls or
+  # performing Supabase-related work during startup in PaaS environments
+  # where the credentials or network may not be available.
+  if os.getenv("SUPABASE_BOOTSTRAP_OPENAI", "0") != "1":
+    _log.debug("SUPABASE_BOOTSTRAP_OPENAI not set; skipping OpenAI bootstrap at startup")
+    return
+
+  # Prefer an explicit env var if set
+  if os.getenv("OPENAI_API_KEY"):
+    return
+  try:
+    # settings_get may raise if Supabase isn't configured; handle safely
+    val = _sbmod.settings_get("OPENAI_API_KEY", default=None, decrypt=True)
+  except Exception:
+    val = None
+  if not val:
+    _log.debug("OPENAI_API_KEY not present in env and not found in Supabase settings")
+    return
+  try:
+    # coerce to string and set in process env
+    if not isinstance(val, str):
+      val = str(val)
+    os.environ["OPENAI_API_KEY"] = val
+    try:
+      masked = f"{val[:4]}***{val[-4:]}"
+    except Exception:
+      masked = "***MASKED***"
+    _log.info("Loaded OPENAI_API_KEY from Supabase settings: %s", masked)
+  except Exception as e:
+    _log.debug("Failed to apply OPENAI_API_KEY from Supabase: %s", e)
 
 # CORS (adjust as needed)
 app.add_middleware(
@@ -173,11 +232,10 @@ try:
   from routes.audio import router as audio_router
   if audio_router:
     app.include_router(audio_router)
+# remove merge markers and ensure meeting router is included
 except Exception:
   pass
 
-
-<<<<<<< HEAD
 # Ensure meeting router (Meeting Mode scaffold) is mounted (safe include)
 try:
   from routes.meeting import router as meeting_router
@@ -186,9 +244,6 @@ try:
 except Exception:
   pass
 
-
-=======
->>>>>>> origin/main
 # Simple file-backed settings API used by the UI. This keeps settings local to the
 # repository (no external dependency) and allows toggling features such as
 # AGENT_USE_LANGGRAPH from the web UI. Settings are persisted to
@@ -490,6 +545,11 @@ async def ui():
         <h2>V-Me UI (minimal)</h2>
         <p>Next step: connect to <code>/agent/chat</code> once we add it.</p>
         <script src="/static/ui.js"></script>
+        <div style="margin-top:1rem">
+          <h3>Goals (quick view)</h3>
+          <iframe src="/static/goals.html" style="width:100%;height:260px;border:1px solid #ddd;border-radius:6px"></iframe>
+          <p><a href="/showme">Open full Show Me window</a> · <a href="/static/goals.html" target="_blank">Open goals in new tab</a></p>
+        </div>
       </div>
     """)
 
