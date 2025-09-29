@@ -168,6 +168,15 @@ except Exception:
   pass
 
 
+# Ensure audio router (Voice MVP) is mounted (safe include)
+try:
+  from routes.audio import router as audio_router
+  if audio_router:
+    app.include_router(audio_router)
+except Exception:
+  pass
+
+
 # Simple file-backed settings API used by the UI. This keeps settings local to the
 # repository (no external dependency) and allows toggling features such as
 # AGENT_USE_LANGGRAPH from the web UI. Settings are persisted to
