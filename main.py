@@ -159,6 +159,15 @@ except Exception:
   pass
 
 
+# Ensure status router (read-only goals UI) is mounted (safe include)
+try:
+  from routes.status import router as status_router
+  if status_router:
+    app.include_router(status_router)
+except Exception:
+  pass
+
+
 # Simple file-backed settings API used by the UI. This keeps settings local to the
 # repository (no external dependency) and allows toggling features such as
 # AGENT_USE_LANGGRAPH from the web UI. Settings are persisted to
