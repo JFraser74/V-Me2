@@ -29,3 +29,17 @@ This document describes the runtime requirements for admin tokens, Supabase, and
   - `/api/_debug/supacall` and `/api/_debug/railway_inspect` exist to help diagnose deployment issues (they are intentionally minimal and do not return secret values).
 
 Keep secrets out of git and use your platform secret manager for production deployments.
+
+
+### Voice MVP (Whisper)
+
+This project includes a small Voice MVP that accepts audio uploads and forwards
+them to the OpenAI Whisper transcription API. There are two modes:
+
+- Fake mode: set `VOICE_FAKE=1` to avoid calling external services (used in CI/local tests).
+- Real mode: set `VOICE_FAKE=0` and provide `OPENAI_API_KEY` in the environment.
+
+Notes:
+- File size cap: 15 MB. Supported uploads: `audio/webm` (MediaRecorder), `wav`, `m4a`.
+- The endpoint is `/api/audio/upload`. In fake mode the response includes `"fake": true`.
+- For production, run behind HTTPS and set `VOICE_FAKE=0` and `OPENAI_API_KEY`.

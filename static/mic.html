@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8"/>
+<title>Voice MVP</title>
+<style>
+  body{font-family:system-ui;margin:24px;max-width:800px}
+  button{padding:.6rem 1rem}
+  .log{white-space:pre-wrap;border:1px solid #eee;background:#fafafa;padding:.75rem;margin-top:1rem}
+</style>
+<h1>Voice MVP</h1>
+<p>Push-to-talk using MediaRecorder. Posts to <code>/api/audio/upload</code>.</p>
+<div>
+  <button id="rec">🎙️ Start</button>
+  <span id="status"></span>
+</div>
+<div class="log" id="log"></div>
+<script>
+(async function(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    document.getElementById('status').textContent = 'No mic support in this browser.';
+    return;
+  }
+  const btn = document.getElementById('rec');
+  const log = document.getElementById('log');
+  let rec, chunks = [], recording = false;
+
+  async function sendBlob(blob){
+    const fd = new FormData();
+    fd.append('file', blob, 'audio.webm');
+    const r = await fetch('/api/audio/upload', { method:'POST', body: fd });
+    const j = await r.json();
+    log.textContent += `\n[transcript] ${j.transcript}\n[reply] ${j.reply}\n(session: ${j.session_id})\n`;
+  }
+
+  btn.onclick = async ()=>{
+    if(!recording){
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      rec = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      chunks = [];
+      rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+      rec.onstop = async ()=>{
+        const blob = new Blob(chunks, {type:'audio/webm'});
+        document.getElementById('status').textContent = 'Uploading…';
+        try{ await sendBlob(blob); } catch(e){ log.textContent += `\n[error] ${e}\n`; }
+        document.getElementById('status').textContent = '';
+      };
+      rec.start();
+      recording = true;
+      btn.textContent = '⏹ Stop';
+    } else {
+      rec.stop();
+      recording = false;
+      btn.textContent = '🎙️ Start';
+    }
+  };
+})();
+</script>
