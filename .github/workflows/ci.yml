@@ -32,6 +32,7 @@ jobs:
         env:
           PYTHONPATH: .
           VOICE_FAKE: "1"
+          MEETING_FAKE: "1"
         run: |
           PYTHONPATH=. pytest -q
 

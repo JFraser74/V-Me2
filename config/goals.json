@@ -8,7 +8,6 @@
   {
     "goal": "Railway deployment stability",
     "how": "Added __init__.py, PYTHONPATH=., vme_lib namespace; Procfile uses uvicorn",
-    "tools": "—",
     "status": "DONE"
   },
   {
