@@ -71,6 +71,18 @@ from vme_lib.supabase_client import settings_list, settings_put, settings_refres
 
 app = FastAPI(title="V-Me2")
 
+# Minimal middleware to prevent caching of hot Show Me assets after deploy.
+@app.middleware("http")
+async def no_store_for_showme(request: Request, call_next):
+    resp = await call_next(request)
+    try:
+        p = request.url.path
+        if p in ("/showme", "/static/show_me_window.js"):
+            resp.headers["Cache-Control"] = "no-store"
+    except Exception:
+        pass
+    return resp
+
 
 @app.on_event("startup")
 def _check_openai_key():
