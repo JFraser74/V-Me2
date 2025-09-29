@@ -161,8 +161,59 @@
     };
   $('#send-btn').onclick = () => { sendMessage(); };
   $('#attach-btn').onclick = () => { alert('Document upload is not yet enabled'); };
-  // Mic placeholder toggle
-  let micOn = false; $('#mic-btn').onclick = () => { micOn = !micOn; $('#mic-btn').textContent = micOn ? '🎙️•' : '🎙️'; };
+  // Dictation state & utilities (C4)
+  let dictationActive = false;
+  let recognition = null;
+
+  function isDictationSupported(){ return 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window; }
+  function getSpeechRecognitionCtor(){ return window.SpeechRecognition || window.webkitSpeechRecognition; }
+
+  async function startDictation(){
+    if (dictationActive) return;
+    if (!isDictationSupported()){ alert('Dictation is not available in this browser yet.'); return; }
+    const SR = getSpeechRecognitionCtor();
+    recognition = new SR();
+    recognition.lang = 'en-US';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+
+    const input = document.querySelector('#composer-input');
+    const micBtn = document.querySelector('#mic-btn');
+    micBtn.classList.add('active');
+    document.querySelector('#mic-hint')?.classList.remove('hidden');
+    dictationActive = true;
+
+    let finalText = input.value || '';
+
+    recognition.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++){
+        const chunk = e.results[i][0].transcript;
+        if (e.results[i].isFinal){ finalText += (finalText && !finalText.endsWith(' ') ? ' ' : '') + chunk; }
+        else { interim += chunk; }
+      }
+      input.value = finalText + (interim ? ' ' + interim : '');
+    };
+    recognition.onerror = () => stopDictation(true);
+    recognition.onend = () => stopDictation(true);
+    try{ recognition.start(); }catch(e){ /* ignore start errors */ }
+  }
+
+  function stopDictation(silent=false){
+    if (!dictationActive) return;
+    dictationActive = false;
+    try{ recognition && recognition.stop(); }catch(e){}
+    recognition = null;
+    document.querySelector('#mic-btn')?.classList.remove('active');
+    document.querySelector('#mic-hint')?.classList.add('hidden');
+    if (!silent) console.debug('Dictation stopped');
+  }
+
+  // Wire the mic button to toggle dictation
+  document.addEventListener('DOMContentLoaded', ()=>{
+    const mic = document.querySelector('#mic-btn');
+    if (mic){ mic.addEventListener('click', ()=>{ if (dictationActive) stopDictation(); else startDictation(); }); }
+  });
 
     refreshRecent(); render();
   }
