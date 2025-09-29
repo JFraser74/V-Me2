@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>V-Me2 • Stream demo</title>
+    <style>body{font-family:system-ui,Arial;margin:16px;background:#0b0b0c;color:#eef}pre{background:#101214;padding:12px;border-radius:8px}</style>
+  </head>
+  <body>
+    <h2>Stream demo</h2>
+    <p>Connects to <code>/agent/stream?message=hi</code> and appends events.</p>
+    <pre id="out">connecting...
+</pre>
+    <script>
+      const out = document.getElementById('out');
+      out.textContent = '';
+      const params = new URLSearchParams({message: 'hi'});
+      const es = new EventSource('/agent/stream?'+params.toString());
+      es.onmessage = (e) => {
+        try{
+          const d = JSON.parse(e.data);
+          out.textContent += `${d.type}: ${d.text}\n`;
+        }catch(err){
+          out.textContent += e.data + '\n';
+        }
+      }
+      es.onerror = (e) => {
+        out.textContent += '\n[error] connection closed';
+        es.close();
+      }
+    </script>
+  </body>
+</html>
