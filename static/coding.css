@@ -23,3 +23,9 @@ body{margin:0;background:var(--bg);color:#e6eef8}
 .bubble.assistant.streaming .dots{display:inline-block;margin-left:.3rem;opacity:.6;animation:pulse 1s infinite ease-in-out}
 @keyframes pulse{0%{opacity:.2}50%{opacity:.9}100%{opacity:.2}}
 
+
+
+#mic-btn.active { color: #d00; }
+#mic-btn.active::after { content: ' ●'; }
+.muted { color:#888; font-size:12px; }
+.hidden { display:none; }
