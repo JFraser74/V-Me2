@@ -43,7 +43,6 @@ Notes:
 - File size cap: 15 MB. Supported uploads: `audio/webm` (MediaRecorder), `wav`, `m4a`.
 - The endpoint is `/api/audio/upload`. In fake mode the response includes `"fake": true`.
 - For production, run behind HTTPS and set `VOICE_FAKE=0` and `OPENAI_API_KEY`.
-<<<<<<< HEAD
 
 
 ### Meeting Mode (real)
@@ -63,5 +62,15 @@ Manual validation: use the Supabase Table Editor to confirm rows are present in 
 
 Notes: this PR implements write-only, best-effort behavior — failures to persist do not change endpoint responses. The Service Role key bypasses RLS; configure policies as desired.
 
-=======
->>>>>>> origin/main
+
+### Threads API (Coding panel)
+
+The Coding panel uses a small Threads API to persist and restore chat-like threads. Endpoints:
+
+- POST `/api/threads` — create a session (body: optional `label`). Returns `{id, title}`.
+- PUT `/api/threads/{id}/title` — update the session label. Returns `{ok,id,title}`.
+- GET `/api/threads?limit=20` — return recent named sessions: `{items:[{id,title,created_at}]}`.
+- GET `/api/threads/{id}/messages` — return ordered messages for a session: `{items:[{id,role,content,created_at}]}`.
+
+These endpoints are best-effort: if Supabase isn't configured the API returns empty lists or `{ok:false}` responses and the UI should handle empty results gracefully.
+

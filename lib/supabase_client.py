@@ -55,6 +55,18 @@ def create_session(label: Optional[str] = None) -> Optional[int]:
         return None
 
 
+def update_session_title(session_id: int, title: str) -> bool:
+    """Best-effort: update the label/title of an existing session. Returns True on success."""
+    sb = _client()
+    if not sb:
+        return False
+    try:
+        sb.table("va_sessions").update({"label": title}).eq("id", int(session_id)).execute()
+        return True
+    except Exception:
+        return False
+
+
 def safe_log_message(session_id: Union[int, str, None], role: str, content: str):
     sb = _client()
     if not sb:

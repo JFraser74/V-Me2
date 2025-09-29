@@ -273,8 +273,6 @@ smoke_voice_fake() {
 if [[ "${VOICE_FAKE:-}" == "1" ]]; then
   smoke_voice_fake
 fi
-<<<<<<< HEAD
-
 # --- meeting smoke (fake) --------------------------------------------------
 smoke_meeting_fake() {
   if [[ "${MEETING_FAKE:-}" != "1" ]]; then
@@ -297,5 +295,39 @@ smoke_meeting_fake() {
 if [[ "${MEETING_FAKE:-}" == "1" ]]; then
   smoke_meeting_fake
 fi
-=======
->>>>>>> origin/main
+
+# --- stream smoke (fake) ----------------------------------------------------
+smoke_stream_fake() {
+  if [[ "${DEV_LOCAL_LLM:-}" != "1" && "${DEV_LOCAL_LLM:-}" != "true" ]]; then
+    echo "[info] DEV_LOCAL_LLM not enabled; skipping stream fake smoke"
+    return 0
+  fi
+  echo "[info] running stream fake smoke..."
+  mkdir -p "$SAVE_DIR" || true
+  curl -sS -H "Accept: text/event-stream" "$BASE_URL/agent/stream?message=hi" -o "$SAVE_DIR/stream.txt" || true
+  echo "[saved] $SAVE_DIR/stream.txt"
+}
+
+# Run stream fake smoke if DEV_LOCAL_LLM=1
+if [[ "${DEV_LOCAL_LLM:-}" == "1" ]]; then
+  smoke_stream_fake
+fi
+ 
+# --- threads smoke ---------------------------------------------------------
+smoke_threads_list() {
+  echo "[info] fetching /api/threads"
+  OUT="$TMPDIR/threads.json"
+  CODE=$(req GET "$BASE_URL/api/threads" "$OUT") || true
+  if [[ "$CODE" == "200" ]]; then
+    ok "Threads list: 200"
+    if [[ -n "$SAVE_DIR" ]]; then
+      cat "$OUT" | save_json threads
+    fi
+  else
+    warn "Threads list: $CODE"
+  fi
+}
+
+# Always attempt threads list (best-effort)
+smoke_threads_list
+ 
