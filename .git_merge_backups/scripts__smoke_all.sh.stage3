@@ -273,25 +273,3 @@ smoke_voice_fake() {
 if [[ "${VOICE_FAKE:-}" == "1" ]]; then
   smoke_voice_fake
 fi
-# --- meeting smoke (fake) --------------------------------------------------
-smoke_meeting_fake() {
-  if [[ "${MEETING_FAKE:-}" != "1" ]]; then
-    echo "[info] MEETING_FAKE not enabled; skipping meeting fake smoke"
-    return 0
-  fi
-  echo "[info] running meeting (fake) smoke..."
-  mid=$(curl -sf -X POST "$BASE_URL/api/meeting/begin" | python3 -c 'import sys,json;print(json.load(sys.stdin)["meeting_id"])') || true
-  curl -sf -H 'content-type: application/json' -d "{\"meeting_id\":\"$mid\",\"text\":\"Line one.\"}" "$BASE_URL/api/meeting/ingest" >/dev/null || true
-  curl -sf -H 'content-type: application/json' -d "{\"meeting_id\":\"$mid\",\"text\":\"Line two with keywords.\"}" "$BASE_URL/api/meeting/ingest" >/dev/null || true
-  out=$(curl -sf -H 'content-type: application/json' -d "{\"meeting_id\":\"$mid\"}" "$BASE_URL/api/meeting/end" || true)
-  echo "$out"
-  if [ -n "$SMOKE_SAVE_DIR" ]; then
-    mkdir -p "$SMOKE_SAVE_DIR"
-    printf "%s" "$out" > "$SMOKE_SAVE_DIR/meeting_fake_$(date +%Y%m%d-%H%M%S).json"
-  fi
-}
-
-# Run meeting fake smoke if MEETING_FAKE=1
-if [[ "${MEETING_FAKE:-}" == "1" ]]; then
-  smoke_meeting_fake
-fi

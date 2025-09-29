@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>V-Me2 — Stream</title>
+<style>
+  body{font-family:system-ui;margin:20px}
+  #out{white-space:pre-wrap;border:1px solid #eee;padding:12px;border-radius:8px;min-height:120px}
+  .tick{color:#888}
+  .done{color:#060}
+</style>
+<h1>Streaming demo</h1>
+<p>Open an EventSource to <code>/agent/stream?session_id=&lt;id&gt;</code> (leave blank to auto-create).</p>
+<div id="out">(waiting…)</div>
+<script>
+(function(){
+  const out = document.getElementById('out');
+  const params = new URLSearchParams(window.location.search);
+  const sid = params.get('session_id') || '';
+  const url = '/agent/stream' + (sid ? ('?session_id=' + encodeURIComponent(sid)) : '');
+  const es = new EventSource(url);
+  out.textContent = '';
+  es.onmessage = function(e){
+    try{
+      const d = JSON.parse(e.data);
+      if(d.type === 'tick'){
+        out.innerHTML += `<div class='tick'>${d.text}</div>`;
+      } else if(d.type === 'chunk'){
+        out.innerHTML += `<div>${JSON.stringify(d.data)}</div>`;
+      } else if(d.type === 'done'){
+        out.innerHTML += `<div class='done'>${d.text}</div>`;
+        es.close();
+      }
+    }catch(err){ out.innerHTML += '<div>'+e.data+'</div>'; }
+  };
+  es.onerror = function(e){ out.innerHTML += '<div class="tick">[error]</div>'; es.close(); };
+})();
+</script>

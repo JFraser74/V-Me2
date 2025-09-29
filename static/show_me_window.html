@@ -32,19 +32,38 @@
   </head>
   <body>
     <div class="wrap">
-      <div class="top">
-        <div class="brand">
-          <img src="/static/vme2-logo.png" alt="logo" width="28" height="28" onerror="this.style.display='none'"/>
-          <h1>V-Me • Show Me</h1>
+      <!-- Top header: logo, mic controls, global settings -->
+      <header class="top" style="align-items:center">
+        <div class="brand" style="align-items:center">
+          <img src="/static/vme2-logo.png" alt="logo" width="36" height="36" onerror="this.style.display='none'"/>
+          <h1 style="margin-left:6px">V-Me</h1>
           <span class="pill" id="session-pill">session: n/a</span>
           <span class="pill" id="langgraph-pill" style="margin-left:8px">LangGraph: unknown</span>
         </div>
-        <div class="right">
-          <span class="muted">/agent/chat + /api/settings</span>
-          <span class="kbd">/ls .</span>
-          <span class="kbd">/read main.py</span>
+
+        <div style="display:flex;gap:12px;align-items:center">
+          <!-- Microphone controls central -->
+          <div style="display:flex;gap:8px;align-items:center;margin:0 16px">
+            <button id="micToggle" title="Toggle voice conversation" class="tab" style="padding:8px;border-radius:8px">🎤 Voice</button>
+            <button id="meetingToggle" title="Toggle meeting mode" class="tab" style="padding:8px;border-radius:8px">🎙️ Meeting</button>
+          </div>
         </div>
-      </div>
+
+        <div class="right" style="position:relative">
+          <button id="headerSettingsBtn" class="tab">Settings ⚙️</button>
+          <div id="headerSettingsDropdown" style="display:none;position:absolute;right:0;top:40px;background:var(--card);border:1px solid #232530;padding:12px;border-radius:10px;width:360px;z-index:30">
+            <div style="font-weight:600;margin-bottom:6px">Global Settings</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:8px">Quick access to keys & global toggles (masked values shown).</div>
+            <div style="margin-bottom:8px"><label class="muted">OPENAI_API_KEY (masked)</label><input id="h_OPENAI_API_KEY" placeholder="paste key to save" style="width:100%"/></div>
+            <div style="margin-bottom:8px"><label class="muted">SUPABASE_URL</label><input id="h_SUPABASE_URL" placeholder="https://..." style="width:100%"/></div>
+            <div style="margin-bottom:8px"><label class="muted">SUPABASE_SERVICE_ROLE_KEY (masked)</label><input id="h_SUPABASE_SERVICE_ROLE_KEY" placeholder="paste service role key" style="width:100%"/></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+              <button id="headerSaveSettings">Save</button>
+              <button id="headerCloseSettings">Close</button>
+            </div>
+          </div>
+        </div>
+      </header>
 
       <div class="grid">
         <!-- Left column -->
@@ -65,12 +84,20 @@
           <h3>Settings</h3>
           <div id="settingsBanner" class="muted" style="margin-bottom:8px"></div>
           <div id="settingsBox" class="list muted">(loading …)</div>
-          <div class="row" style="margin-top:8px">
-            <label class="muted">TTS speed</label>
-            <input id="ttsSpeed" type="number" step="0.1" min="0.5" max="2.0" value="1.0" style="width:88px"/>
-            <label class="muted">Queue reminder (min)</label>
-            <input id="queueMinutes" type="number" step="1" min="1" max="60" value="5" style="width:88px"/>
-            <button id="saveSettings">Save</button>
+          <div style="margin-top:8px">
+            <div style="margin-bottom:6px"><label class="muted">OPENAI_API_KEY (masked)</label><input id="s_OPENAI_API_KEY" placeholder="paste key to save" style="width:100%"/></div>
+            <div style="margin-bottom:6px"><label class="muted">OPENAI_MODEL</label><input id="s_OPENAI_MODEL" placeholder="gpt-4o-mini" style="width:100%"/></div>
+            <div style="margin-bottom:6px"><label class="muted">AGENT_TOOLS_ENABLED (comma list)</label><input id="s_AGENT_TOOLS_ENABLED" placeholder="tool1,tool2" style="width:100%"/></div>
+            <div style="margin-bottom:6px"><label class="muted">SUPABASE_URL</label><input id="s_SUPABASE_URL" placeholder="https://..." style="width:100%"/></div>
+            <div style="margin-bottom:6px"><label class="muted">SUPABASE_ANON_KEY (masked)</label><input id="s_SUPABASE_ANON_KEY" placeholder="paste anon key to save" style="width:100%"/></div>
+            <div style="margin-bottom:6px"><label class="muted">SUPABASE_SERVICE_ROLE_KEY (masked)</label><input id="s_SUPABASE_SERVICE_ROLE_KEY" placeholder="paste service role key" style="width:100%"/></div>
+            <div class="row" style="margin-top:8px">
+              <label class="muted">TTS speed</label>
+              <input id="ttsSpeed" type="number" step="0.1" min="0.5" max="2.0" value="1.0" style="width:88px"/>
+              <label class="muted">Queue reminder (min)</label>
+              <input id="queueMinutes" type="number" step="1" min="1" max="60" value="5" style="width:88px"/>
+              <button id="saveSettings">Save</button>
+            </div>
           </div>
           <div style="height:8px"></div>
           <div class="row">
@@ -79,6 +106,22 @@
             <span id="langgraphNote" class="muted" style="margin-left:8px"></span>
           </div>
           <div class="muted" id="settingsNote" style="margin-top:6px"></div>
+          <div style="height:12px"></div>
+          <h3>Goals</h3>
+          <div id="goalsBox" class="muted">Loading goals…</div>
+        </div>
+
+        <!-- Meeting overlay (hidden by default) -->
+        <div id="meetingOverlay" style="display:none;position:fixed;left:0;top:64px;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:60;justify-content:center;align-items:flex-start;padding-top:40px">
+          <div style="background:var(--card);border:1px solid #232530;padding:12px;border-radius:10px;margin:0 auto;width:720px;">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div style="font-weight:700">Meeting Mode</div>
+              <div><button id="endMeetingBtn">End Meeting</button></div>
+            </div>
+            <div style="margin-top:8px">Meeting ID: <span id="meetingId">(none)</span></div>
+            <div style="margin-top:8px"><textarea id="meetingTranscript" placeholder="Transcript segments will appear here" style="height:180px;width:100%"></textarea></div>
+            <div style="display:flex;gap:8px;margin-top:8px"><button id="ingestSegmentBtn">Send segment</button><button id="startMeetingBtn" style="display:none">Start Meeting</button></div>
+          </div>
         </div>
 
         <!-- Right column -->
@@ -97,6 +140,17 @@
           </div>
           <div id="modePanel" class="muted" style="margin-top:10px">
             Ready. Use Chat for now; other tabs are placeholders you can wire later.
+          </div>
+
+          <!-- Per-mode header with subtle settings placeholder -->
+          <div id="modeHeader" style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+            <div style="display:flex;gap:8px;align-items:center">
+              <div id="modeTitle" style="font-weight:600">Chat</div>
+              <div class="muted" id="modeHint" style="font-size:13px">Mode-specific controls shown here</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button id="modeSettingsBtn" class="tab" title="Mode settings">Mode Settings</button>
+            </div>
           </div>
 
           <div style="height:16px"></div>

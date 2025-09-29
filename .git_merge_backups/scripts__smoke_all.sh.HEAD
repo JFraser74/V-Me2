@@ -273,6 +273,7 @@ smoke_voice_fake() {
 if [[ "${VOICE_FAKE:-}" == "1" ]]; then
   smoke_voice_fake
 fi
+
 # --- meeting smoke (fake) --------------------------------------------------
 smoke_meeting_fake() {
   if [[ "${MEETING_FAKE:-}" != "1" ]]; then

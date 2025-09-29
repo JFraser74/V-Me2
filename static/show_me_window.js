@@ -181,6 +181,40 @@ try{
       const btn = $('#saveSettings'); if (btn) btn.disabled = true;
     }
   }
+  // Goals panel (load and render compact table)
+  async function loadGoals() {
+    try {
+      const r = await fetch('/status/goals');
+      if (!r.ok) throw new Error('failed');
+      const d = await r.json();
+      const items = (d.items || []).slice(0, 50);
+      const box = document.getElementById('goalsBox');
+      if (!box) return;
+      if (!items.length) { box.textContent = '(no goals found)'; return; }
+      const tbl = document.createElement('table');
+      tbl.style.width = '100%'; tbl.style.borderCollapse = 'collapse'; tbl.style.fontSize = '13px';
+      const thead = document.createElement('thead'); thead.innerHTML = '<tr><th style="text-align:left;padding:6px">Goal</th><th style="text-align:left;padding:6px">Status</th></tr>';
+      const tbody = document.createElement('tbody');
+      items.forEach(it => {
+        const tr = document.createElement('tr');
+        const g = document.createElement('td'); g.style.padding='6px'; g.textContent = it.goal || '';
+        const s = document.createElement('td'); s.style.padding='6px';
+        const st = String(it.status||'');
+        const span = document.createElement('span'); span.textContent = st; span.style.padding='4px 8px'; span.style.borderRadius='6px'; span.style.fontSize='12px';
+        if (st.toUpperCase().startsWith('DONE')) { span.style.background='#ecfdf5'; span.style.color='#065f46'; }
+        else if (st.toUpperCase().startsWith('WAITING')) { span.style.background='#fff7ed'; span.style.color='#9a3412'; }
+        else { span.style.background='#eef2ff'; span.style.color='#3730a3'; }
+        s.appendChild(span);
+        tr.appendChild(g); tr.appendChild(s); tbody.appendChild(tr);
+      });
+      tbl.appendChild(thead); tbl.appendChild(tbody);
+      box.innerHTML = ''; box.appendChild(tbl);
+    } catch (e) {
+      const box = document.getElementById('goalsBox'); if (box) box.textContent = '(failed to load goals)';
+    }
+  }
+  // load goals once on init
+  loadGoals();
   $('#saveSettings') && ($('#saveSettings').onclick = async () => {
     try {
       const payload = {
@@ -281,6 +315,145 @@ try{
     const res = await ui_save_settings(body);
     if (!res.ok) { alert('save failed: '+JSON.stringify(res)); return; }
     alert('Saved keys: '+JSON.stringify(res.updated||[]));
+  });
+
+  // Auto-load values into new settings inputs on page load
+  (async function autoLoadSettingsInputs(){
+    try{
+      const res = await ui_load_settings();
+      if (!res || !res.ok) return;
+      const s = res.settings || {};
+      const keys = ['OPENAI_API_KEY','OPENAI_MODEL','AGENT_TOOLS_ENABLED','SUPABASE_URL','SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY'];
+      keys.forEach(k=>{ const el = document.getElementById('s_'+k); if(el) el.value = s[k] ?? ''; });
+    }catch(e){ /* ignore */ }
+  })();
+
+  // Header settings dropdown wiring
+  const headerBtn = document.getElementById('headerSettingsBtn');
+  const headerDropdown = document.getElementById('headerSettingsDropdown');
+  if (headerBtn && headerDropdown) {
+    headerBtn.onclick = async () => {
+      headerDropdown.style.display = headerDropdown.style.display === 'none' ? 'block' : 'none';
+      // lazy-load values from Supabase-backed settings into header fields
+      try {
+        const res = await ui_load_settings();
+        if (res && res.ok) {
+          const s = res.settings || {};
+          document.getElementById('h_OPENAI_API_KEY').value = s.OPENAI_API_KEY || '';
+          document.getElementById('h_SUPABASE_URL').value = s.SUPABASE_URL || '';
+          document.getElementById('h_SUPABASE_SERVICE_ROLE_KEY').value = s.SUPABASE_SERVICE_ROLE_KEY || '';
+        }
+      } catch(e) { /* ignore */ }
+    };
+    document.getElementById('headerCloseSettings').onclick = () => { headerDropdown.style.display = 'none'; };
+    document.getElementById('headerSaveSettings').onclick = async () => {
+      const map = {};
+      ['OPENAI_API_KEY','SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY'].forEach(k => {
+        const el = document.getElementById('h_'+k);
+        if (el && el.value && el.value.trim().length) map[k] = el.value.trim();
+      });
+      if (!Object.keys(map).length) { alert('Nothing to save'); return; }
+      try {
+        const res = await ui_save_settings(map);
+        if (!res.ok) { alert('save failed: '+JSON.stringify(res)); return; }
+        alert('Saved: '+JSON.stringify(res.updated||[]));
+        headerDropdown.style.display = 'none';
+      } catch(e){ alert('save error: '+e); }
+    };
+  }
+
+  // Mode settings placeholder wiring
+  const modeSettingsBtn = document.getElementById('modeSettingsBtn');
+  if (modeSettingsBtn) {
+    modeSettingsBtn.onclick = () => {
+      alert('Mode settings panel placeholder — will be implemented per-mode.');
+    };
+  }
+
+  // Wire mic buttons: voice opens mic.html, meeting toggles meeting overlay and API calls
+  const micToggle = document.getElementById('micToggle');
+  const meetingToggle = document.getElementById('meetingToggle');
+  const meetingOverlay = document.getElementById('meetingOverlay');
+  const meetingIdEl = document.getElementById('meetingId');
+  const meetingTranscript = document.getElementById('meetingTranscript');
+  const ingestBtn = document.getElementById('ingestSegmentBtn');
+  const endMeetingBtn = document.getElementById('endMeetingBtn');
+  let currentMeetingId = null;
+
+  if (micToggle) micToggle.onclick = () => { window.open('/static/mic.html', '_blank'); };
+
+  if (meetingToggle) meetingToggle.onclick = async () => {
+    // Toggle overlay
+    if (meetingOverlay.style.display === 'none' || meetingOverlay.style.display === '') {
+      // begin meeting via API
+      try {
+        const r = await fetch('/api/meeting/begin', {method:'POST'});
+        const j = await r.json();
+        currentMeetingId = j.meeting_id || null;
+        meetingIdEl.textContent = currentMeetingId || '(none)';
+        meetingTranscript.value = '';
+        meetingOverlay.style.display = 'flex';
+      } catch(e){ alert('Failed to start meeting: '+e); }
+    } else {
+      // hide overlay
+      meetingOverlay.style.display = 'none';
+    }
+  };
+
+  if (ingestBtn) ingestBtn.onclick = async () => {
+    if (!currentMeetingId) { alert('No meeting started'); return; }
+    const text = meetingTranscript.value.trim();
+    if (!text) { alert('Enter a transcript segment first'); return; }
+    try {
+      const r = await fetch('/api/meeting/ingest', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({meeting_id: currentMeetingId, text})});
+      const j = await r.json();
+      if (j.ok) { alert('Segment ingested'); meetingTranscript.value = ''; }
+      else alert('Ingest failed');
+    } catch(e){ alert('Ingest error: '+e); }
+  };
+
+  if (endMeetingBtn) endMeetingBtn.onclick = async () => {
+    if (!currentMeetingId) { meetingOverlay.style.display = 'none'; return; }
+    try {
+      const r = await fetch('/api/meeting/end', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({meeting_id: currentMeetingId})});
+      const j = await r.json();
+      if (j && j.summary) { alert('Meeting ended — summary:\n'+j.summary); }
+      currentMeetingId = null;
+      meetingOverlay.style.display = 'none';
+    } catch(e){ alert('End meeting error: '+e); }
+  };
+
+  // Hook Save button to persist both non-secret settings and secret keys via PUT
+  $('#saveSettings') && ($('#saveSettings').onclick = async () => {
+    try{
+      const payload = {};
+      // non-secret UI settings persisted via POST /api/settings (existing flow)
+      payload.tts_speed = parseFloat($('#ttsSpeed').value || '1.0');
+      payload.queue_reminder_minutes = parseInt($('#queueMinutes').value || '5', 10);
+      payload.agent_use_langgraph = !!$('#agentUseLanggraph').checked;
+      const token = $('#adminToken') ? $('#adminToken').value.trim() : '';
+      const headers = {'content-type':'application/json'}; if (token) headers['X-Admin-Token']=token;
+      // First POST the simple settings (apply in-process where possible)
+      const r1 = await fetch('/api/settings', {method:'POST', headers, body: JSON.stringify(payload)});
+      if (!r1.ok) throw new Error('Failed saving basic settings');
+      const body1 = await r1.json();
+      // Now collect secret keys from the new fields and PUT them via /api/settings (Supabase-backed)
+      const putMap = {};
+      ['OPENAI_API_KEY','OPENAI_MODEL','AGENT_TOOLS_ENABLED','SUPABASE_URL','SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY'].forEach(k=>{
+        const el = document.getElementById('s_'+k);
+        if (el && el.value && el.value.trim().length) putMap[k] = el.value.trim();
+      });
+      if (Object.keys(putMap).length) {
+        const r2 = await fetch('/api/settings', {method:'PUT', headers, body: JSON.stringify(putMap)});
+        if (!r2.ok) throw new Error('Failed saving secret settings');
+        await r2.json();
+        // Trigger refresh so runtime picks up changes if possible
+        await fetch('/api/settings/refresh', {method:'POST', headers});
+      }
+      // reload settings display
+      await loadSettings();
+      setStatus('saved');
+    }catch(e){ setStatus('save failed'); log('[settings error] '+e); }
   });
 
 

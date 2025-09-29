@@ -74,13 +74,13 @@
     "goal": "Voice MVP (Whisper/OpenAI)",
     "how": "Server: POST /api/audio/upload → Whisper → reply/log; UI: mic toggle; extend smoke",
     "tools": "OPENAI_API_KEY (Whisper), SUPABASE_*",
-    "status": "WAITING FOR: create branch feat/voice-mvp-whisper; implement endpoints & UI; HTTPS on deploy"
+    "status": "DONE (fake verified; real Whisper requires OPENAI_API_KEY & env)"
   },
   {
     "goal": "Meeting Mode (listen-only)",
     "how": "Continuous capture→Supabase; /api/meeting/end summarizes",
     "tools": "SUPABASE_*",
-    "status": "WAITING FOR: Voice MVP foundation"
+    "status": "DONE (scaffold + DB wiring; write-only persisted segments)"
   },
   {
     "goal": "Conversation memory & speed",

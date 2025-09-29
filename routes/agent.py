@@ -17,6 +17,9 @@ from fastapi import Query
 from typing import List, Dict
 from vme_lib import supabase_client as _sbmod
 from pathlib import Path
+import asyncio
+import json
+from fastapi.responses import StreamingResponse
 
 # try to import workspace read/write tools; fall back to local FS
 try:
@@ -355,3 +358,92 @@ def select(table: str = Query(...), limit: int = Query(5), order: str | None = N
         return res.data or []
     except Exception:
         return []
+
+
+# --- SSE streaming endpoint (top-level) ---------------------------------------
+@router.get("/stream")
+async def stream(session_id: str | None = Query(None), label: str | None = Query(None)):
+    """Server-Sent Events (SSE) endpoint that streams assistant output.
+
+    - In DEV_LOCAL_LLM or when OPENAI_API_KEY is missing, emits deterministic ticks
+      then a final done message (useful for tests and fake mode).
+    - If the graph exposes a streaming interface (e.g., `stream_invoke`), this
+      will attempt to use it; otherwise it falls back to a single final message.
+    """
+
+    # Ensure a session id
+    sid = session_id
+    if not sid:
+        try:
+            sidv = create_session(label or "stream")
+            sid = str(sidv) if sidv is not None else ""
+        except Exception:
+            sid = ""
+
+    async def event_generator():
+        # Fake/local mode: deterministic tick events
+        if os.getenv("DEV_LOCAL_LLM", "").lower() in ("1", "true", "yes") or not os.getenv("OPENAI_API_KEY"):
+            # Emit a few thinking ticks, then a final done event with an echo
+            for i in range(4):
+                payload = {"type": "tick", "text": f"thinking {i+1}/4"}
+                yield f"data: {json.dumps(payload)}\n\n"
+                await asyncio.sleep(0.15)
+            final = {"type": "done", "text": f"(local-mode) Echo stream for session {sid or ''}"}
+            # best-effort log
+            try:
+                safe_log_message(session_id=sid, role="assistant", content=final["text"])
+            except Exception:
+                pass
+            yield f"data: {json.dumps(final)}\n\n"
+            return
+
+        # Try to use the graph's streaming API if present
+        try:
+            graph = get_graph()
+            # If graph provides an async generator interface 'stream_invoke', use it
+            if hasattr(graph, "stream_invoke"):
+                async for chunk in graph.stream_invoke({"session_id": sid, "messages": [{"role": "user", "content": ""}]}):
+                    # chunk expected to be dict-like with 'delta' or 'text'
+                    try:
+                        if isinstance(chunk, dict):
+                            payload = {"type": "chunk", "data": chunk}
+                            yield f"data: {json.dumps(payload)}\n\n"
+                        else:
+                            yield f"data: {json.dumps({"type": "chunk", "text": str(chunk)})}\n\n"
+                    except Exception:
+                        yield f"data: {json.dumps({"type": "chunk", "text": str(chunk)})}\n\n"
+                # After streaming, attempt to get final text
+                try:
+                    res = graph.invoke({"session_id": sid, "messages": [{"role": "user", "content": ""}]})
+                    final_text = res.get("last_text", "")
+                except Exception:
+                    final_text = ""
+                payload = {"type": "done", "text": final_text}
+                yield f"data: {json.dumps(payload)}\n\n"
+                return
+        except Exception:
+            # fall through to non-stream fallback
+            pass
+
+        # Fallback: no streaming available, call graph.invoke once and return final message
+        try:
+            graph = get_graph()
+            res = graph.invoke({"session_id": sid, "messages": [{"role": "user", "content": ""}]})
+            final_text = res.get("last_text", "")
+            payload = {"type": "done", "text": final_text}
+            # log best-effort
+            try:
+                safe_log_message(session_id=sid, role="assistant", content=final_text)
+            except Exception:
+                pass
+            yield f"data: {json.dumps(payload)}\n\n"
+            return
+        except Exception:
+            # Last-resort simulated ticks
+            for i in range(3):
+                payload = {"type": "tick", "text": f"thinking {i+1}/3"}
+                yield f"data: {json.dumps(payload)}\n\n"
+                await asyncio.sleep(0.2)
+            yield f"data: {json.dumps({"type": "done", "text": ""})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

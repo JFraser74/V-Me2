@@ -11,20 +11,9 @@ _MEETING_FAKE = lambda: os.getenv("MEETING_FAKE", "1") == "1"
 # In-memory store only for fake mode (CI/tests)
 _store: Dict[str, List[dict]] = {}
 
-# Lazy import helpers to avoid failing app import when supabase deps / env are missing
-_insert_meeting = None
-_insert_segment = None
-_finalize_meeting = None
-try:
-    from lib.supabase_client import insert_meeting, insert_segment, finalize_meeting
-    _insert_meeting = insert_meeting
-    _insert_segment = insert_segment
-    _finalize_meeting = finalize_meeting
-except Exception:
-    # supabase client not configured / not available; real-mode will be best-effort no-op
-    _insert_meeting = None
-    _insert_segment = None
-    _finalize_meeting = None
+# We'll dynamically import `lib.supabase_client` inside handlers so tests can monkeypatch its
+# functions after the app / router modules are imported. This keeps startup safe while
+# allowing runtime best-effort writes when helpers are available.
 
 
 class BeginOut(BaseModel):
@@ -62,14 +51,22 @@ def begin():
         return BeginOut(meeting_id=mid)
 
     # Real mode: attempt best-effort insert into Supabase to get a numeric meeting id.
-    if _insert_meeting:
-        try:
-            mid_num = _insert_meeting(label=None)
-            if mid_num:
-                # return numeric id as string to keep client types stable
-                return BeginOut(meeting_id=str(mid_num))
-        except Exception:
-            pass
+    try:
+        # Resolve helper at runtime so tests can monkeypatch lib.supabase_client
+        import importlib
+        sc = importlib.import_module("lib.supabase_client")
+        insert_meeting = getattr(sc, "insert_meeting", None)
+        if insert_meeting:
+            try:
+                mid_num = insert_meeting(label=None)
+                if mid_num:
+                    # return numeric id as string to keep client types stable
+                    return BeginOut(meeting_id=str(mid_num))
+            except Exception:
+                pass
+    except Exception:
+        # unable to import supabase client; continue with fallback
+        pass
     # Fallback: return a UUID (write-only mode will no-op if we couldn't create a row)
     return BeginOut(meeting_id=mid)
 
@@ -92,10 +89,13 @@ def ingest(payload: IngestIn):
     # Real mode: best-effort insert of segment if supabase helper exists and meeting_id is numeric
     count = 0
     try:
-        if _insert_segment:
+        import importlib
+        sc = importlib.import_module("lib.supabase_client")
+        insert_segment = getattr(sc, "insert_segment", None)
+        if insert_segment:
             try:
                 mid_int = int(payload.meeting_id)
-                seg_id = _insert_segment(meeting_id=mid_int, text=payload.text.strip(), ts=payload.ts)
+                seg_id = insert_segment(meeting_id=mid_int, text=payload.text.strip(), ts=payload.ts)
                 # we don't know total count without reading DB; return 1 to indicate accepted
                 if seg_id:
                     count = 1
@@ -127,13 +127,16 @@ def end(payload: EndIn):
     # In real mode, try best-effort to persist summary/bullets if we have a numeric meeting id and helper
     if not _MEETING_FAKE():
         try:
+            import importlib
+            sc = importlib.import_module("lib.supabase_client")
+            finalize_meeting = getattr(sc, "finalize_meeting", None)
             try:
                 mid_int = int(payload.meeting_id)
             except ValueError:
                 mid_int = None
-            if mid_int and _finalize_meeting:
+            if mid_int and finalize_meeting:
                 try:
-                    _finalize_meeting(meeting_id=mid_int, summary=summary, bullets=bullets, segment_count=len(segs) or None)
+                    finalize_meeting(meeting_id=mid_int, summary=summary, bullets=bullets, segment_count=len(segs) or None)
                 except Exception:
                     pass
         except Exception:

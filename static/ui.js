@@ -107,3 +107,14 @@ async function showSettingsPanel(adminToken){
 
 // Expose to window so operators can call showSettingsPanel(adminToken) from console
 window.showSettingsPanel = showSettingsPanel;
+
+// Inject a small Goals iframe into the minimal /ui page if present
+(function(){
+	try{
+		const root = document.currentScript && document.currentScript.parentElement ? document.currentScript.parentElement : document.body;
+		const el = document.createElement('div');
+		el.style.marginTop = '1rem';
+		el.innerHTML = `<h3>Goals</h3><iframe src="/static/goals.html" style="width:100%;height:260px;border:1px solid #ddd;border-radius:6px"></iframe>`;
+		root.appendChild(el);
+	}catch(e){/* ignore */}
+})();
