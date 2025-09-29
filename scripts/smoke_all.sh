@@ -247,3 +247,29 @@ fi
 say "----------------------------------------"
 printf "PASS: %d   FAIL: %d   WARN: %d\n" "$PASS" "$FAIL" "$WARN"
 if [[ "$FAIL" -gt 0 ]]; then exit 1; fi
+
+# --- voice smoke (fake) ----------------------------------------------------
+# POST a tiny fake webm to the audio upload endpoint when VOICE_FAKE=1
+smoke_voice_fake() {
+  if [[ "${VOICE_FAKE:-}" != "1" ]]; then
+    echo "[info] VOICE_FAKE not enabled; skipping voice fake smoke"
+    return 0
+  fi
+  echo "[info] running voice (fake) smoke..."
+  # create a tiny dummy payload (not a real webm, but the server's fake-mode should accept)
+  BODY_FILE="$TMPDIR/smoke_voice_body.bin"
+  printf "FAKEAUDIO" >"$BODY_FILE"
+  CODE=$(curl -sS -o "$TMPDIR/smoke_voice.json" -w "%{http_code}" -X POST "$BASE_URL/api/audio/upload" \
+    -H "Content-Type: multipart/form-data" -F "file=@$BODY_FILE;type=audio/webm") || true
+  if [[ "$CODE" == "200" ]] || [[ "$CODE" == "201" ]]; then
+    ok "Voice (fake) endpoint: $CODE"
+    if [[ -n "$SAVE_DIR" ]]; then cat "$TMPDIR/smoke_voice.json" | save_json voice_fake; fi
+  else
+    warn "Voice (fake) returned $CODE; body:"; cat "$TMPDIR/smoke_voice.json" | pp_json
+  fi
+}
+
+# Run voice fake smoke if VOICE_FAKE=1
+if [[ "${VOICE_FAKE:-}" == "1" ]]; then
+  smoke_voice_fake
+fi
