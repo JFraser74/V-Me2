@@ -1,0 +1,128 @@
+[
+  {
+    "goal": "LangGraph bootstrap agent & Supabase logging",
+    "how": "FastAPI /agent/chat → LangGraph ReAct; sessions/messages to Supabase; fallbacks when deps/keys missing",
+    "tools": "OPENAI_API_KEY, OPENAI_MODEL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY)",
+    "status": "DONE"
+  },
+  {
+    "goal": "Railway deployment stability",
+    "how": "Added __init__.py, PYTHONPATH=., vme_lib namespace; Procfile uses uvicorn",
+    "tools": "—",
+    "status": "DONE"
+  },
+  {
+    "goal": "CI smoke + stable/rotatable admin tokens",
+    "how": "smoke.yml uses CI_SETTINGS_ADMIN_TOKEN; runtime SETTINGS_ADMIN_TOKEN rotatable; smoke_all.sh & railway_preflight.sh",
+    "tools": "CI_SETTINGS_ADMIN_TOKEN, SETTINGS_ADMIN_TOKEN, BASE_URL",
+    "status": "DONE"
+  },
+  {
+    "goal": "GitHub Actions secrets/schema warnings",
+    "how": "Guarded inside step; no job-level secrets in if:",
+    "tools": "—",
+    "status": "DONE"
+  },
+  {
+    "goal": "Tool events API clamp",
+    "how": "GET /agent/tool_events clamps limit via FastAPI Query ≤ 50",
+    "tools": "—",
+    "status": "DONE"
+  },
+  {
+    "goal": "Confirm-gated git push tool",
+    "how": "git_push_tool registered; confirm=True required",
+    "tools": "GITHUB_PAT/GITHUB_TOKEN",
+    "status": "DONE"
+  },
+  {
+    "goal": "Settings helpers in UI",
+    "how": "static/ui.js has putSettings + refreshSettings",
+    "tools": "—",
+    "status": "DONE"
+  },
+  {
+    "goal": "Smoke scripts",
+    "how": "scripts/smoke_all.sh (auto-start, polling, save JSON) + railway_preflight.sh",
+    "tools": "—",
+    "status": "DONE"
+  },
+  {
+    "goal": "Bridge hardening + rate limit + encrypted peers",
+    "how": "Admin-gated /api/bridge/peers; sliding window; Supabase enc; file fallback non-secrets only",
+    "tools": "SETTINGS_ADMIN_TOKEN, APP_ENCRYPTION_KEY, SUPABASE_SERVICE_ROLE_KEY",
+    "status": "DONE"
+  },
+  {
+    "goal": "Hardened CLI wrappers (GitHub/Railway)",
+    "how": "subprocess.run(no shell), tokens via env/settings, masked output, timeouts",
+    "tools": "GITHUB_TOKEN/PAT, RAILWAY_TOKEN",
+    "status": "DONE"
+  },
+  {
+    "goal": "Docs/Ops & importer",
+    "how": ".env.example, OPERATIONS.md, scripts/import_va_min.py",
+    "tools": "—",
+    "status": "DONE"
+  },
+  {
+    "goal": "FastAPI lifespan migration",
+    "how": "Use lifespan context instead of on_event",
+    "tools": "—",
+    "status": "DONE"
+  },
+  {
+    "goal": "Voice MVP (Whisper/OpenAI)",
+    "how": "Server: POST /api/audio/upload → Whisper → reply/log; UI: mic toggle; extend smoke",
+    "tools": "OPENAI_API_KEY (Whisper), SUPABASE_*",
+    "status": "WAITING FOR: create branch feat/voice-mvp-whisper; implement endpoints & UI; HTTPS on deploy"
+  },
+  {
+    "goal": "Meeting Mode (listen-only)",
+    "how": "Continuous capture→Supabase; /api/meeting/end summarizes",
+    "tools": "SUPABASE_*",
+    "status": "WAITING FOR: Voice MVP foundation"
+  },
+  {
+    "goal": "Conversation memory & speed",
+    "how": "Persist sessions; add streaming SSE & optional TTS; optimistic UI",
+    "tools": "SUPABASE_*, TTS key (OpenAI/ElevenLabs), optional REDIS_URL",
+    "status": "WAITING FOR: Voice MVP"
+  },
+  {
+    "goal": "Voice-driven Gmail actions",
+    "how": "LangGraph tools for list/read/reply/forward/archive with confirm=True; audit to Supabase; confirmation UI",
+    "tools": "Google OAuth (CLIENT_ID, CLIENT_SECRET), per-user tokens in Supabase",
+    "status": "WAITING FOR: pick Gmail auth path; create tables; tools & UI"
+  },
+  {
+    "goal": "Batch email import (keep)",
+    "how": "Incremental importer (VA-min DSN or Gmail API) to va_emails/queue; nightly + manual trigger",
+    "tools": "Source DSN or Gmail creds; SUPABASE_*",
+    "status": "WAITING FOR: initial backfill; schedule incremental sync"
+  },
+  {
+    "goal": "Inter-service orchestration (no copy/paste)",
+    "how": "Bridge endpoints & CLI/API wrappers exposed as LangGraph tools; signed commands; confirm=True default",
+    "tools": "GITHUB_TOKEN, RAILWAY_TOKEN, OPENAI_API_KEY",
+    "status": "WAITING FOR: define signed cmd schema; add graph nodes"
+  },
+  {
+    "goal": "Railway GraphQL projects resolver",
+    "how": "Use CLI wrapper until GraphQL error resolved; track support ticket",
+    "tools": "RAILWAY_TOKEN",
+    "status": "WAITING FOR: Railway support"
+  },
+  {
+    "goal": "Supabase configuration & encryption",
+    "how": "Service role for writes; APP_ENCRYPTION_KEY for enc:v1:; admin token policy (CI vs runtime)",
+    "tools": "SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APP_ENCRYPTION_KEY, SETTINGS_ADMIN_TOKEN, CI_SETTINGS_ADMIN_TOKEN",
+    "status": "DONE"
+  },
+  {
+    "goal": "GAS transition plan",
+    "how": "Keep GAS for legacy triggers short-term; V-Me2 takes over import/actions gradually",
+    "tools": "GAS deployment token (if used)",
+    "status": "PLANNED"
+  }
+]
