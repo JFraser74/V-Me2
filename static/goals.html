@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8"/>
+<title>Goals status</title>
+<style>
+  body{font-family:system-ui,ui-sans-serif;margin:24px}
+  table{border-collapse:collapse;width:100%}
+  th,td{border:1px solid #e5e7eb;padding:10px;vertical-align:top}
+  th{background:#f8fafc;text-align:left}
+  .badge{display:inline-block;padding:.15rem .5rem;border-radius:.4rem;font-size:.85rem}
+  .DONE{background:#ecfdf5;color:#065f46}
+  .PLANNED{background:#eef2ff;color:#3730a3}
+  .WAITING{background:#fff7ed;color:#9a3412}
+  .muted{color:#64748b}
+</style>
+<h1>V-Me2 — Goals status</h1>
+<p class="muted">Read-only table. Source: <code>/status/goals</code></p>
+<table id="tbl"><thead>
+  <tr><th>Goal</th><th>How it works in V-Me2</th><th>Tools & keys/tokens</th><th>Status</th></tr>
+</thead><tbody></tbody></table>
+<script>
+(async function(){
+  const res = await fetch('/status/goals');
+  const data = await res.json();
+  const tbody = document.querySelector('#tbl tbody');
+  (data.items||[]).forEach(row=>{
+    const tr=document.createElement('tr');
+    const status = String(row.status||'').toUpperCase();
+    tr.innerHTML = `
+      <td>${row.goal||''}</td>
+      <td>${row.how||''}</td>
+      <td>${row.tools||'—'}</td>
+      <td><span class="badge ${status.startsWith('DONE')?'DONE':status.startsWith('WAITING')?'WAITING':'PLANNED'}">${row.status||''}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+})();
+</script>
