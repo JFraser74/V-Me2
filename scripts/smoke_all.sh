@@ -133,6 +133,13 @@ else
   warn "Admin token not set — settings write/refresh checks will be skipped."
 fi
 
+# --- smoke: capture version endpoint early ---
+smoke_version(){
+  local out="$SAVE_DIR/version_$(date +%Y%m%d-%H%M%S).json"
+  curl -sS "$BASE_URL/status/version" | tee "$out" | grep -q '"commit"' && ok "version endpoint ok" || warn "version endpoint missing"
+}
+if [[ -n "$SAVE_DIR" ]]; then smoke_version; fi
+
 # 1) Health
 code=$(req GET "$BASE_URL/health" "$TMPDIR/health.txt")
 if [[ "$code" == "200" ]] && grep -qi "ok" "$TMPDIR/health.txt"; then

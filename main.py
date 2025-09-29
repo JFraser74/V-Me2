@@ -64,6 +64,7 @@ _log = logging.getLogger("uvicorn.error")
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -186,6 +187,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def _no_store_hot_assets(request: Request, call_next):
+  resp = await call_next(request)
+  p = request.url.path
+  # ensure Show Me HTML and the main UI JS are not cached by clients
+  if p in ("/showme", "/static/show_me_window.js"):
+    resp.headers["Cache-Control"] = "no-store"
+  return resp
 
 # Optional static mount (only if folder exists)
 STATIC_DIR = Path(__file__).parent / "static"
@@ -720,6 +731,141 @@ async def api_debug_railway_inspect():
       out['summary'].append({'endpoint': name, 'error': str(e)[:400]})
 
   return JSONResponse(out)
+
+
+@app.get('/api/tests/list')
+async def api_tests_list(request: Request):
+  """Discover runnable tests and smoke scripts in the workspace.
+
+  Returns a small JSON array with entries {id,name,type,cmd} where `type` is
+  one of: script, make, pytest, custom. This is used by the UI to render
+  clickable test entries.
+  """
+  # Allow localhost or admin token same as other settings endpoints
+  allowed = _allowed_admin_tokens()
+  if allowed:
+    token = request.headers.get('x-admin-token') or request.query_params.get('admin_token')
+    if not token or token not in allowed:
+      return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
+  else:
+    if not _is_local_request(request):
+      return JSONResponse({'ok': False, 'error': 'restricted to localhost when no admin token configured'}, status_code=403)
+
+  root = Path(__file__).parent
+  tests = []
+  # Discover scripts/*.sh
+  scripts_dir = root / 'scripts'
+  try:
+    if scripts_dir.exists():
+      for p in sorted(scripts_dir.glob('*.sh')):
+        tests.append({'id': f'script:{p.name}', 'name': p.name, 'type': 'script', 'cmd': f'bash {p.as_posix()}'} )
+  except Exception:
+    pass
+
+  # Discover Makefile targets (simple heuristic: lines like 'name:' at start)
+  try:
+    mf = root / 'Makefile'
+    if mf.exists():
+      content = mf.read_text()
+      import re
+      # capture candidate targets, ignore special targets starting with . or containing spaces
+      for m in re.finditer(r'^([a-zA-Z0-9_@%+\-.:]+):', content, flags=re.M):
+        name = m.group(1)
+        if name in ('.PHONY',) or name.startswith('.') or ' ' in name:
+          continue
+        # basic filter: avoid variable assignments mistaken for targets
+        if '=' in name: continue
+        tests.append({'id': f'make:{name}', 'name': f'make {name}', 'type': 'make', 'cmd': f'make {name}'})
+  except Exception:
+    pass
+
+  # Add pytest if tests/ exists
+  try:
+    tdir = root / 'tests'
+    if tdir.exists() and any(tdir.glob('test_*.py')):
+      tests.append({'id': 'pytest', 'name': 'pytest -q', 'type': 'pytest', 'cmd': 'pytest -q'})
+  except Exception:
+    pass
+
+  # Add a default smoke entry if not present
+  if not any(x['id'].startswith('script:smoke_all') for x in tests):
+    s = scripts_dir / 'smoke_all.sh'
+    if s.exists():
+      tests.insert(0, {'id': 'script:smoke_all', 'name': 'smoke_all.sh', 'type': 'script', 'cmd': f'bash {s.as_posix()}'} )
+
+  return JSONResponse({'ok': True, 'tests': tests})
+
+
+@app.get('/api/tests/run')
+async def api_run_tests(request: Request, name: str | None = None):
+  """Run a named test or smoke script and stream the terminal output as SSE.
+
+  Query params:
+    name - test identifier (e.g., smoke_all, make:test, pytest, all). If omitted
+           defaults to smoke_all.sh behavior.
+
+  This endpoint is intentionally permissive for localhost usage. When an
+  admin token is configured, require it via X-Admin-Token header.
+  """
+  # Access control: require admin token if configured. EventSource cannot set
+  # custom headers in browsers, so also accept admin_token query param for this
+  # endpoint when present.
+  allowed = _allowed_admin_tokens()
+  if allowed:
+    token = request.headers.get('x-admin-token') or request.query_params.get('admin_token')
+    if not token or token not in allowed:
+      return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
+  else:
+    if not _is_local_request(request):
+      return JSONResponse({'ok': False, 'error': 'restricted to localhost when no admin token configured'}, status_code=403)
+
+  # Decide command to run
+  cmd = None
+  env = os.environ.copy()
+  # Map well-known test names to commands
+  if not name or name in ('smoke', 'smoke_all'):
+    # run the smoke_all.sh script
+    script = Path(__file__).parent / 'scripts' / 'smoke_all.sh'
+    if script.exists():
+      cmd = ['bash', str(script)]
+  elif name == 'pytest' or name == 'tests':
+    cmd = ['pytest', '-q']
+  elif name == 'make-test' or name == 'make:test' or name == 'make_test':
+    cmd = ['make', 'test']
+  elif name == 'smoke-curl':
+    cmd = ['make', 'smoke-curl']
+  else:
+    # allow direct shell commands for advanced users (not recommended) — run through /bin/bash -lc
+    cmd = ['bash', '-lc', name]
+
+  if not cmd:
+    return JSONResponse({'ok': False, 'error': 'no test command found'}, status_code=404)
+
+  async def stream():
+    # Start subprocess and stream stdout/stderr as SSE events
+    import asyncio
+    proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, env=env)
+    try:
+      # yield lines as SSE data events
+      while True:
+        line = await proc.stdout.readline()
+        if not line:
+          break
+        try:
+          text = line.decode('utf-8', errors='replace')
+        except Exception:
+          text = str(line)
+        yield f"data: {json.dumps({'type':'output','text': text})}\n\n"
+      rc = await proc.wait()
+      yield f"data: {json.dumps({'type':'exit','code': rc})}\n\n"
+    except asyncio.CancelledError:
+      try:
+        proc.kill()
+      except Exception:
+        pass
+      raise
+
+  return StreamingResponse(stream(), media_type='text/event-stream')
 
 
 if __name__ == "__main__":
