@@ -273,6 +273,7 @@ smoke_voice_fake() {
 if [[ "${VOICE_FAKE:-}" == "1" ]]; then
   smoke_voice_fake
 fi
+<<<<<<< HEAD
 
 # --- meeting smoke (fake) --------------------------------------------------
 smoke_meeting_fake() {
@@ -296,3 +297,5 @@ smoke_meeting_fake() {
 if [[ "${MEETING_FAKE:-}" == "1" ]]; then
   smoke_meeting_fake
 fi
+=======
+>>>>>>> origin/main
