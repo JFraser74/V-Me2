@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Coding (beta)</title>
+  <link rel="stylesheet" href="/static/coding.css?v=" + Date.now()>
+</head>
+<body>
+  <div id="coding-app">
+    <div class="sidebar" id="coding-sidebar">
+      <div class="sidebar-actions">
+        <button id="btnNew">New chat</button>
+        <button id="btnSaveName">Save & name</button>
+      </div>
+      <div class="recent-list" id="recentList"></div>
+    </div>
+
+    <div class="main" id="coding-main">
+      <div class="history" id="history"></div>
+      <div class="composer" id="composer">
+        <textarea id="composer-input" placeholder="Type a message..."></textarea>
+        <div class="controls">
+          <button id="btnMic">🎙️</button>
+          <button id="btnAttach">+</button>
+          <button id="btnSend">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Simple cache-busting loader for the JS
+    var s = document.createElement('script'); s.src = '/static/coding.js?v=' + Date.now(); s.defer = true; document.head.appendChild(s);
+  </script>
+</body>
+</html>
