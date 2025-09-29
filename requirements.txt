@@ -13,3 +13,4 @@ vosk
 langgraph==0.2.*
 aiofiles
 httpx
+python-multipart
