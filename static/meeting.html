@@ -1,0 +1,46 @@
+<!doctype html><meta charset="utf-8"/>
+<title>Meeting Mode (fake)</title>
+<div style="font-family:system-ui;max-width:720px;margin:16px auto">
+  <h1>Meeting Mode (fake)</h1>
+  <div>
+    <button id="begin">Begin</button>
+    <span id="mid" style="margin-left:.5rem;color:#555"></span>
+  </div>
+  <textarea id="txt" style="width:100%;height:100px;margin-top:8px" placeholder="Type or paste a snippet..."></textarea>
+  <div style="margin-top:8px">
+    <button id="ingest">Ingest</button>
+    <button id="end">End & Summarize</button>
+  </div>
+  <pre id="out" style="background:#fafafa;border:1px solid #eee;padding:8px;margin-top:12px;white-space:pre-wrap;"></pre>
+</div>
+<script>
+let meetingId = null;
+const $ = s => document.querySelector(s);
+$('#begin').onclick = async () => {
+  const r = await fetch('/api/meeting/begin', {method:'POST'});
+  const j = await r.json();
+  meetingId = j.meeting_id;
+  $('#mid').textContent = `meeting_id: ${meetingId}`;
+};
+$('#ingest').onclick = async () => {
+  if(!meetingId) return alert('Begin first');
+  const text = $('#txt').value.trim();
+  if(!text) return;
+  const r = await fetch('/api/meeting/ingest', {
+    method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({meeting_id: meetingId, text})
+  });
+  const j = await r.json();
+  $('#out').textContent += `\n[ingested] count=${j.count}`;
+  $('#txt').value = '';
+};
+$('#end').onclick = async () => {
+  if(!meetingId) return alert('Begin first');
+  const r = await fetch('/api/meeting/end', {
+    method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({meeting_id: meetingId})
+  });
+  const j = await r.json();
+  $('#out').textContent = `Summary:\n${j.summary}\n\nBullets:\n- ${j.bullets.join('\n- ')}\nSegments: ${j.segment_count}`;
+};
+</script>

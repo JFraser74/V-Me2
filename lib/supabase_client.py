@@ -190,3 +190,55 @@ def settings_list() -> Dict[str, Any]:
         else:
             out[k] = v
     return out
+
+
+# ---------------- Meetings write helpers (best-effort, write-only) ----------------
+def insert_meeting(label: Optional[str] = None) -> Optional[int]:
+    """Insert a meeting row and return the new id, or None on failure / missing client."""
+    sb = _client()
+    if not sb:
+        return None
+    try:
+        res = sb.table("va_meetings").insert({"label": label}).execute()
+        return res.data[0]["id"] if res.data else None
+    except Exception:
+        return None
+
+
+def insert_segment(meeting_id: int, text: str, ts: float | None = None, idx: int | None = None) -> Optional[int]:
+    """Append a segment to va_meeting_segments. Returns segment id or None."""
+    sb = _client()
+    if not sb:
+        return None
+    try:
+        payload = {
+            "meeting_id": meeting_id,
+            "ts": float(ts) if ts is not None else None,
+            "idx": idx,
+            "text": text,
+        }
+        res = sb.table("va_meeting_segments").insert(payload).execute()
+        return res.data[0]["id"] if res.data else None
+    except Exception:
+        return None
+
+
+def finalize_meeting(meeting_id: int, summary: str | None, bullets: list | None, segment_count: int | None = None) -> bool:
+    """Update va_meetings with summary/bullets and optionally segment_count. Returns True on success."""
+    sb = _client()
+    if not sb:
+        return False
+    try:
+        upd: Dict[str, Any] = {}
+        if summary is not None:
+            upd["summary"] = summary
+        if bullets is not None:
+            upd["bullets"] = bullets
+        if segment_count is not None:
+            upd["segment_count"] = int(segment_count)
+        if not upd:
+            return True
+        sb.table("va_meetings").update(upd).eq("id", int(meeting_id)).execute()
+        return True
+    except Exception:
+        return False

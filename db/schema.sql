@@ -48,3 +48,26 @@ values
 on conflict (key) do nothing;
 
 -- NOTE: Service Role bypasses RLS; define finer-grained policies later for anon/public use.
+
+
+-- Meetings: stores meeting metadata and segments (write-only wiring uses these)
+create table if not exists va_meetings (
+  id bigint primary key generated always as identity,
+  created_at timestamptz default now(),
+  label text,
+  summary text,
+  bullets jsonb,
+  segment_count int default 0
+);
+alter table va_meetings enable row level security;
+
+create table if not exists va_meeting_segments (
+  id bigint primary key generated always as identity,
+  created_at timestamptz default now(),
+  meeting_id bigint references va_meetings(id) on delete cascade,
+  "ts" double precision,
+  idx int,
+  text text
+);
+create index if not exists idx_va_meeting_segments_meeting_id on va_meeting_segments(meeting_id);
+alter table va_meeting_segments enable row level security;

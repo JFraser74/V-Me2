@@ -177,6 +177,18 @@ except Exception:
   pass
 
 
+<<<<<<< HEAD
+# Ensure meeting router (Meeting Mode scaffold) is mounted (safe include)
+try:
+  from routes.meeting import router as meeting_router
+  if meeting_router:
+    app.include_router(meeting_router)
+except Exception:
+  pass
+
+
+=======
+>>>>>>> origin/main
 # Simple file-backed settings API used by the UI. This keeps settings local to the
 # repository (no external dependency) and allows toggling features such as
 # AGENT_USE_LANGGRAPH from the web UI. Settings are persisted to
