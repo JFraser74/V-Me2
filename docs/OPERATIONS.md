@@ -43,3 +43,22 @@ Notes:
 - File size cap: 15 MB. Supported uploads: `audio/webm` (MediaRecorder), `wav`, `m4a`.
 - The endpoint is `/api/audio/upload`. In fake mode the response includes `"fake": true`.
 - For production, run behind HTTPS and set `VOICE_FAKE=0` and `OPENAI_API_KEY`.
+
+
+### Meeting Mode (real)
+
+This repository ships a Meeting Mode with a fake in-memory store for tests. To run in real mode against Supabase:
+
+- Apply the `db/schema.sql` file in the Supabase SQL editor (or run via psql against your `DATABASE_URL`).
+- Set environment variables:
+  - `MEETING_FAKE=0`
+  - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (service role) in your environment.
+- Start the server and exercise the endpoints:
+  1. POST `/api/meeting/begin` — creates a meeting row and returns a numeric `meeting_id` when successful.
+  2. POST `/api/meeting/ingest` — send segments with that numeric `meeting_id`.
+  3. POST `/api/meeting/end` — returns the summary; the server will attempt to update the `va_meetings` row with the summary and bullets.
+
+Manual validation: use the Supabase Table Editor to confirm rows are present in `va_meetings` and `va_meeting_segments`.
+
+Notes: this PR implements write-only, best-effort behavior — failures to persist do not change endpoint responses. The Service Role key bypasses RLS; configure policies as desired.
+
