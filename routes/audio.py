@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import JSONResponse
 from typing import Optional
 import os, aiofiles, tempfile, httpx
@@ -40,6 +40,7 @@ async def _to_tempfile(upload: UploadFile) -> str:
 
 @router.post("/upload")
 async def upload_audio(
+    request: Request,
     file: UploadFile = File(...),
     session_id: Optional[str] = Form(None),
     label: Optional[str] = Form(None),
@@ -64,6 +65,24 @@ async def upload_audio(
             pass
         try:
             safe_log_message(session_id, "assistant", reply)
+        except Exception:
+            pass
+        # Optional: best-effort meeting logging when meeting_id provided and not fake
+        try:
+            mid = (request.query_params.get("meeting_id")
+                   or None)
+
+            if mid and os.getenv("MEETING_FAKE") != "1":
+                try:
+                    from importlib import import_module
+                    sc = import_module("lib.supabase_client")
+                    try:
+                        mid_int = int(str(mid))
+                        getattr(sc, "insert_segment", lambda *a, **k: None)(mid_int, transcript, ts=None, idx=None)
+                    except ValueError:
+                        pass
+                except Exception:
+                    pass
         except Exception:
             pass
         return JSONResponse({"session_id": session_id, "transcript": transcript, "reply": reply, "fake": True})
@@ -91,6 +110,23 @@ async def upload_audio(
         try:
             safe_log_message(session_id, "user", transcript)
             safe_log_message(session_id, "assistant", reply)
+        except Exception:
+            pass
+        # Optional: best-effort meeting logging when meeting_id provided and not fake
+        try:
+            mid = (request.query_params.get("meeting_id")
+                   or None)
+            if mid and os.getenv("MEETING_FAKE") != "1":
+                try:
+                    from importlib import import_module
+                    sc = import_module("lib.supabase_client")
+                    try:
+                        mid_int = int(str(mid))
+                        getattr(sc, "insert_segment", lambda *a, **k: None)(mid_int, transcript, ts=None, idx=None)
+                    except ValueError:
+                        pass
+                except Exception:
+                    pass
         except Exception:
             pass
         return {"session_id": session_id, "transcript": transcript, "reply": reply}
