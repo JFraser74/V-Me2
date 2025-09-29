@@ -11,7 +11,7 @@
       .top{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
       .brand{display:flex;gap:10px;align-items:center}
       .brand h1{font-size:20px;margin:0}
-      .grid{display:grid;grid-template-columns:320px 1fr;gap:16px}
+  .grid{display:grid;grid-template-columns:1fr;gap:16px}
       .card{background:var(--card);border:1px solid #1f2026;border-radius:14px;padding:14px}
       .card h3{margin:.1rem 0 .6rem 0;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
       .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -35,29 +35,86 @@
       <!-- Top header: logo, mic controls, global settings -->
       <header class="top" style="align-items:center">
         <div class="brand" style="align-items:center">
-          <img src="/static/vme2-logo.png" alt="logo" width="36" height="36" onerror="this.style.display='none'"/>
-          <h1 style="margin-left:6px">V-Me</h1>
-          <span class="pill" id="session-pill">session: n/a</span>
-          <span class="pill" id="langgraph-pill" style="margin-left:8px">LangGraph: unknown</span>
+          <img src="/static/vme2-logo.svg?v=3" alt="logo" width="48" height="48" onerror="this.style.display='none'"/>
+          <div style="margin-left:10px">
+            <div style="font-size:18px;font-weight:700;line-height:1">&nbsp;</div>
+            <div style="display:flex;align-items:center">
+              <div class="pill" id="session-pill" style="margin-top:6px">session: n/a</div>
+              <span id="vm-version" style="font:12px system-ui;color:#888;margin-left:.5rem"></span>
+            </div>
+          </div>
         </div>
 
         <div style="display:flex;gap:12px;align-items:center">
           <!-- Microphone controls central -->
           <div style="display:flex;gap:8px;align-items:center;margin:0 16px">
-            <button id="micToggle" title="Toggle voice conversation" class="tab" style="padding:8px;border-radius:8px">🎤 Voice</button>
-            <button id="meetingToggle" title="Toggle meeting mode" class="tab" style="padding:8px;border-radius:8px">🎙️ Meeting</button>
+            <button id="micToggle" title="Toggle conversation" class="tab btn-off" style="padding:8px;border-radius:8px">🎤 Conversation</button>
+            <button id="meetingToggle" title="Toggle meeting mode" class="tab btn-off" style="padding:8px;border-radius:8px">🎙️ Meeting</button>
           </div>
         </div>
 
         <div class="right" style="position:relative">
           <button id="headerSettingsBtn" class="tab">Settings ⚙️</button>
-          <div id="headerSettingsDropdown" style="display:none;position:absolute;right:0;top:40px;background:var(--card);border:1px solid #232530;padding:12px;border-radius:10px;width:360px;z-index:30">
-            <div style="font-weight:600;margin-bottom:6px">Global Settings</div>
-            <div style="font-size:13px;color:var(--muted);margin-bottom:8px">Quick access to keys & global toggles (masked values shown).</div>
-            <div style="margin-bottom:8px"><label class="muted">OPENAI_API_KEY (masked)</label><input id="h_OPENAI_API_KEY" placeholder="paste key to save" style="width:100%"/></div>
-            <div style="margin-bottom:8px"><label class="muted">SUPABASE_URL</label><input id="h_SUPABASE_URL" placeholder="https://..." style="width:100%"/></div>
-            <div style="margin-bottom:8px"><label class="muted">SUPABASE_SERVICE_ROLE_KEY (masked)</label><input id="h_SUPABASE_SERVICE_ROLE_KEY" placeholder="paste service role key" style="width:100%"/></div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+          <div id="headerSettingsDropdown" style="display:none;position:absolute;right:0;top:40px;background:var(--card);border:1px solid #232530;padding:12px;border-radius:10px;width:420px;z-index:30">
+            <div style="font-weight:700;margin-bottom:6px">Settings</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:8px">Manage global keys, voice, and mode settings.</div>
+            <div style="border-top:1px solid #232530;margin-top:8px;padding-top:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" id="hdr_global_toggle">
+                <div style="font-weight:600">Global Settings</div>
+                <div class="muted">▶</div>
+              </div>
+              <div id="hdr_global" style="display:none;margin-top:8px">
+                <div style="margin-bottom:6px"><a href="https://virtualme2.up.railway.app/health" target="_blank">Health</a></div>
+                <div style="margin-bottom:6px"><a href="/static/goals.html" target="_blank">Goals</a></div>
+                <div style="margin-bottom:6px"><label class="muted">LangGraph</label>
+                  <select id="h_langgraph" style="width:100%"><option value="1">Enabled</option><option value="0">Disabled</option></select>
+                </div>
+              </div>
+            </div>
+
+            <div style="border-top:1px solid #232530;margin-top:8px;padding-top:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" id="hdr_keys_toggle">
+                <div style="font-weight:600">Keys / Tokens</div>
+                <div class="muted">▶</div>
+              </div>
+              <div id="hdr_keys" style="display:none;margin-top:8px">
+                <div style="margin-bottom:8px"><label class="muted">OPENAI_API_KEY (masked)</label><input id="h_OPENAI_API_KEY" placeholder="paste key to save" style="width:100%"/></div>
+                <div style="margin-bottom:8px"><label class="muted">OPENAI_MODEL</label><input id="h_OPENAI_MODEL" placeholder="gpt-4o-mini" style="width:100%"/></div>
+                <div style="margin-bottom:8px"><label class="muted">SUPABASE_URL</label><input id="h_SUPABASE_URL" placeholder="https://..." style="width:100%"/></div>
+                <div style="margin-bottom:8px"><label class="muted">SUPABASE_SERVICE_ROLE_KEY (masked)</label><input id="h_SUPABASE_SERVICE_ROLE_KEY" placeholder="paste service role key" style="width:100%"/></div>
+              </div>
+            </div>
+
+            <div style="border-top:1px solid #232530;margin-top:8px;padding-top:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" id="hdr_voice_toggle">
+                <div style="font-weight:600">Voice Settings</div>
+                <div class="muted">▶</div>
+              </div>
+              <div id="hdr_voice" style="display:none;margin-top:8px">
+                <div style="margin-bottom:8px"><label class="muted">TTS speed</label><input id="h_ttsSpeed" type="number" step="0.1" min="0.5" max="2.0" value="1.0" style="width:120px"/></div>
+                <div style="margin-bottom:8px"><label class="muted">Queue reminder (min)</label><input id="h_queueMinutes" type="number" step="1" min="1" max="60" value="5" style="width:120px"/></div>
+              </div>
+            </div>
+
+            <div style="border-top:1px solid #232530;margin-top:8px;padding-top:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" id="hdr_tests_toggle">
+                <div style="font-weight:600">Tests</div>
+                <div class="muted">▶</div>
+              </div>
+              <div id="hdr_tests" style="display:none;margin-top:8px">
+                <div style="margin-bottom:6px">Run smoke and unit tests from the browser. Output will stream into the Coding tab console.</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button id="runSmokeBtn">Run Smoke</button>
+                  <button id="runMakeTestBtn">Run Make Test</button>
+                  <button id="runPytestBtn">Run Pytest</button>
+                  <input id="customTestName" placeholder="custom command (optional)" style="flex:1"/>
+                  <button id="runCustomBtn">Run</button>
+                </div>
+                <div style="margin-top:8px;font-size:12px;color:var(--muted)">Note: tests run on the server where the app is hosted. Admin token may be required for some checks.</div>
+              </div>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
               <button id="headerSaveSettings">Save</button>
               <button id="headerCloseSettings">Close</button>
             </div>
@@ -66,8 +123,8 @@
       </header>
 
       <div class="grid">
-        <!-- Left column -->
-        <div class="card">
+  <!-- Left column (hidden per user request) -->
+  <div id="leftColumn" class="card" style="display:none">
           <h3>Controls</h3>
           <div class="row">
             <input id="label" placeholder="session label (optional)"/>
@@ -80,23 +137,24 @@
             <span id="status" class="muted"></span>
           </div>
 
-          <div style="height:16px"></div>
-          <h3>Settings</h3>
-          <div id="settingsBanner" class="muted" style="margin-bottom:8px"></div>
-          <div id="settingsBox" class="list muted">(loading …)</div>
-          <div style="margin-top:8px">
-            <div style="margin-bottom:6px"><label class="muted">OPENAI_API_KEY (masked)</label><input id="s_OPENAI_API_KEY" placeholder="paste key to save" style="width:100%"/></div>
-            <div style="margin-bottom:6px"><label class="muted">OPENAI_MODEL</label><input id="s_OPENAI_MODEL" placeholder="gpt-4o-mini" style="width:100%"/></div>
-            <div style="margin-bottom:6px"><label class="muted">AGENT_TOOLS_ENABLED (comma list)</label><input id="s_AGENT_TOOLS_ENABLED" placeholder="tool1,tool2" style="width:100%"/></div>
-            <div style="margin-bottom:6px"><label class="muted">SUPABASE_URL</label><input id="s_SUPABASE_URL" placeholder="https://..." style="width:100%"/></div>
-            <div style="margin-bottom:6px"><label class="muted">SUPABASE_ANON_KEY (masked)</label><input id="s_SUPABASE_ANON_KEY" placeholder="paste anon key to save" style="width:100%"/></div>
-            <div style="margin-bottom:6px"><label class="muted">SUPABASE_SERVICE_ROLE_KEY (masked)</label><input id="s_SUPABASE_SERVICE_ROLE_KEY" placeholder="paste service role key" style="width:100%"/></div>
-            <div class="row" style="margin-top:8px">
-              <label class="muted">TTS speed</label>
-              <input id="ttsSpeed" type="number" step="0.1" min="0.5" max="2.0" value="1.0" style="width:88px"/>
-              <label class="muted">Queue reminder (min)</label>
-              <input id="queueMinutes" type="number" step="1" min="1" max="60" value="5" style="width:88px"/>
-              <button id="saveSettings">Save</button>
+          <!-- Left-side settings migrated into header; keep legacy fields hidden for compatibility -->
+          <div style="display:none">
+            <div id="settingsBanner" class="muted" style="margin-bottom:8px"></div>
+            <div id="settingsBox" class="list muted">(loading …)</div>
+            <div style="margin-top:8px">
+              <div style="margin-bottom:6px"><label class="muted">OPENAI_API_KEY (masked)</label><input id="s_OPENAI_API_KEY" placeholder="paste key to save" style="width:100%"/></div>
+              <div style="margin-bottom:6px"><label class="muted">OPENAI_MODEL</label><input id="s_OPENAI_MODEL" placeholder="gpt-4o-mini" style="width:100%"/></div>
+              <div style="margin-bottom:6px"><label class="muted">AGENT_TOOLS_ENABLED (comma list)</label><input id="s_AGENT_TOOLS_ENABLED" placeholder="tool1,tool2" style="width:100%"/></div>
+              <div style="margin-bottom:6px"><label class="muted">SUPABASE_URL</label><input id="s_SUPABASE_URL" placeholder="https://..." style="width:100%"/></div>
+              <div style="margin-bottom:6px"><label class="muted">SUPABASE_ANON_KEY (masked)</label><input id="s_SUPABASE_ANON_KEY" placeholder="paste anon key to save" style="width:100%"/></div>
+              <div style="margin-bottom:6px"><label class="muted">SUPABASE_SERVICE_ROLE_KEY (masked)</label><input id="s_SUPABASE_SERVICE_ROLE_KEY" placeholder="paste service role key" style="width:100%"/></div>
+              <div class="row" style="margin-top:8px">
+                <label class="muted">TTS speed</label>
+                <input id="ttsSpeed" type="number" step="0.1" min="0.5" max="2.0" value="1.0" style="width:88px"/>
+                <label class="muted">Queue reminder (min)</label>
+                <input id="queueMinutes" type="number" step="1" min="1" max="60" value="5" style="width:88px"/>
+                <button id="saveSettings">Save</button>
+              </div>
             </div>
           </div>
           <div style="height:8px"></div>
@@ -109,7 +167,7 @@
           <div style="height:12px"></div>
           <h3>Goals</h3>
           <div id="goalsBox" class="muted">Loading goals…</div>
-        </div>
+  </div>
 
         <!-- Meeting overlay (hidden by default) -->
         <div id="meetingOverlay" style="display:none;position:fixed;left:0;top:64px;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:60;justify-content:center;align-items:flex-start;padding-top:40px">
@@ -167,6 +225,13 @@
             <div id="rotatedToken" class="muted" style="margin-left:8px"></div>
           </div>
 
-    <script src="/static/show_me_window.js"></script>
+    <script>
+      fetch('/status/version').then(r=>r.json()).then(v=>{
+        const el=document.getElementById('vm-version');
+        if(el){ el.textContent = `v ${v.commit} @ ${v.build_time}`; }
+        console.info('V-Me2 UI version', v);
+      }).catch(e=>console.warn('version fetch failed', e));
+    </script>
+    <script src="/static/show_me_window.js?v=3"></script>
   </body>
 </html>
