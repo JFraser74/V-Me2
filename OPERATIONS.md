@@ -61,4 +61,6 @@ Then open an EventSource to the stream endpoint using the token:
 
 Set `OPS_STREAM_SECRET` in your environment to a secret used to HMAC-sign tokens. If unset, `SETTINGS_ADMIN_TOKEN` will be used as fallback (not recommended for production).
 
+Note: tokens expire after 5 minutes. In production set `OPS_STREAM_SECRET` to a strong random value.
+
 Persisted schema: va_tasks(id, created_at, title, status); va_task_events(id, created_at, task_id, kind, data_json).

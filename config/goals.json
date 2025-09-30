@@ -115,7 +115,7 @@
     "how": "In-app task queue + SSE event log; admin-gated API to create/cancel tasks; in-proc fake mode and Supabase persistence when available; UI hook in Coding panel",
     "tools": "SETTINGS_ADMIN_TOKEN, DEV_LOCAL_LLM, SUPABASE_*, optional OPENAI_API_KEY",
     "status": "LIVE",
-    "notes": "Admin-gated API + SSE in Coding panel; fake-mode deterministic stream; best-effort Supabase persistence."
+    "notes": "Admin-gated API + SSE in Coding panel; fake-mode deterministic stream; best-effort Supabase persistence. SSE auth hardening (ephemeral tokens) implemented."
   },
   {
     "goal": "Railway GraphQL projects resolver",
