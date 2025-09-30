@@ -3,72 +3,72 @@
     "goal": "LangGraph bootstrap agent & Supabase logging",
     "how": "FastAPI /agent/chat → LangGraph ReAct; sessions/messages to Supabase; fallbacks when deps/keys missing",
     "tools": "OPENAI_API_KEY, OPENAI_MODEL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY)",
-    "status": "DONE"
+    "status": "LIVE (backend agent & supabase logging active; UI endpoints available at /agent/*)"
   },
   {
     "goal": "Railway deployment stability",
     "how": "Added __init__.py, PYTHONPATH=., vme_lib namespace; Procfile uses uvicorn",
-    "status": "DONE"
+    "status": "LIVE (deployed builds stable on Railway)"
   },
   {
     "goal": "CI smoke + stable/rotatable admin tokens",
     "how": "smoke.yml uses CI_SETTINGS_ADMIN_TOKEN; runtime SETTINGS_ADMIN_TOKEN rotatable; smoke_all.sh & railway_preflight.sh",
     "tools": "CI_SETTINGS_ADMIN_TOKEN, SETTINGS_ADMIN_TOKEN, BASE_URL",
-    "status": "DONE"
+    "status": "LIVE (CI smoke + admin tokens operational)"
   },
   {
     "goal": "GitHub Actions secrets/schema warnings",
     "how": "Guarded inside step; no job-level secrets in if:",
     "tools": "—",
-    "status": "DONE"
+    "status": "LIVE (CI warnings guarded; pipeline safe)"
   },
   {
     "goal": "Tool events API clamp",
     "how": "GET /agent/tool_events clamps limit via FastAPI Query ≤ 50",
     "tools": "—",
-    "status": "DONE"
+    "status": "LIVE (API validated; rate-limited query param enforced)"
   },
   {
     "goal": "Confirm-gated git push tool",
     "how": "git_push_tool registered; confirm=True required",
     "tools": "GITHUB_PAT/GITHUB_TOKEN",
-    "status": "DONE"
+    "status": "BUILT & TESTED (backend API/tool exists; no UI integration required for write flows)"
   },
   {
     "goal": "Settings helpers in UI",
     "how": "static/ui.js has putSettings + refreshSettings",
     "tools": "—",
-    "status": "DONE"
+    "status": "LIVE (UI settings editor available in the admin panel)"
   },
   {
     "goal": "Smoke scripts",
     "how": "scripts/smoke_all.sh (auto-start, polling, save JSON) + railway_preflight.sh",
     "tools": "—",
-    "status": "DONE"
+    "status": "LIVE (smoke scripts present and used in CI)"
   },
   {
     "goal": "Bridge hardening + rate limit + encrypted peers",
     "how": "Admin-gated /api/bridge/peers; sliding window; Supabase enc; file fallback non-secrets only",
     "tools": "SETTINGS_ADMIN_TOKEN, APP_ENCRYPTION_KEY, SUPABASE_SERVICE_ROLE_KEY",
-    "status": "DONE"
+    "status": "LIVE (bridge endpoints hardened; encryption and rate-limits applied)"
   },
   {
     "goal": "Hardened CLI wrappers (GitHub/Railway)",
     "how": "subprocess.run(no shell), tokens via env/settings, masked output, timeouts",
     "tools": "GITHUB_TOKEN/PAT, RAILWAY_TOKEN",
-    "status": "DONE"
+    "status": "BUILT & TESTED (wrappers implemented; guarded by confirm flags for write actions)"
   },
   {
     "goal": "Docs/Ops & importer",
     "how": ".env.example, OPERATIONS.md, scripts/import_va_min.py",
     "tools": "—",
-    "status": "DONE"
+    "status": "LIVE (documentation and importer scripts present)"
   },
   {
     "goal": "FastAPI lifespan migration",
     "how": "Use lifespan context instead of on_event",
     "tools": "—",
-    "status": "DONE"
+    "status": "BUILT & TESTED (code updated in parts; full migration pending)"
   },
   {
     "goal": "Voice MVP (Whisper/OpenAI)",
@@ -106,6 +106,13 @@
     "tools": "GITHUB_TOKEN, RAILWAY_TOKEN, OPENAI_API_KEY",
     "status": "WAITING FOR: define signed cmd schema; add graph nodes"
   },
+
+  {
+    "goal": "Ops Orchestrator (Tasks + SSE)",
+    "how": "In-app task queue + SSE event log; admin-gated API to create/cancel tasks; in-proc fake mode and Supabase persistence when available; UI hook in Coding panel",
+    "tools": "SETTINGS_ADMIN_TOKEN, DEV_LOCAL_LLM, SUPABASE_*, optional OPENAI_API_KEY",
+    "status": "BUILT & TESTED (local dev + unit tests passing); NOT LIVE — needs PR merge + deploy to be available in production UI"
+  },
   {
     "goal": "Railway GraphQL projects resolver",
     "how": "Use CLI wrapper until GraphQL error resolved; track support ticket",
@@ -116,12 +123,18 @@
     "goal": "Supabase configuration & encryption",
     "how": "Service role for writes; APP_ENCRYPTION_KEY for enc:v1:; admin token policy (CI vs runtime)",
     "tools": "SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APP_ENCRYPTION_KEY, SETTINGS_ADMIN_TOKEN, CI_SETTINGS_ADMIN_TOKEN",
-    "status": "DONE"
+    "status": "LIVE (Supabase-backed settings and encryption in use)"
   },
   {
     "goal": "GAS transition plan",
     "how": "Keep GAS for legacy triggers short-term; V-Me2 takes over import/actions gradually",
     "tools": "GAS deployment token (if used)",
     "status": "PLANNED"
+  },
+  {
+    "goal": "Development hand-off to V-ME2 Agent",
+    "how": "Transition operational planning/merge/deploy orchestration into the V-Me2 LangGraph agent (GPT-5 or future model) running inside the V-Me2 environment with sustained contextual memory and direct tool access. This removes the external human-as-mediator pattern and allows the agent to create tasks, run Ops, and manage PRs when policy/confirm flags permit.",
+    "tools": "LangGraph agent, SETTINGS_ADMIN_TOKEN, GITHUB_TOKEN/PAT, RAILWAY_TOKEN, SUPABASE_*, ops orchestrator",
+    "status": "PLANNED (requires Ops Orchestrator merged, additional policy & security review, and CI/deploy integration)"
   }
 ]

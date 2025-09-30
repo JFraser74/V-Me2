@@ -28,5 +28,6 @@ body{margin:0;background:var(--bg);color:#e6eef8}
 .savebar #save-btn{padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:#072b2b;color:#eaffff}
 .inline-name{display:flex;gap:6px;align-items:center}
 .inline-name input{padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:#071827;color:#eaf6ff}
+.ops-log { background:#111; color:#0f0; padding:8px; font-family:monospace; max-height:200px; overflow:auto; border-radius:4px; }
 .hidden{display:none}
 

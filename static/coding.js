@@ -177,6 +177,17 @@
 
   function init(){
     $('#btnNew').onclick = () => { newChat(); };
+    const btnOps = $('#btnNewOps');
+    if (btnOps) btnOps.onclick = async () => {
+      const title = prompt('Task title') || '';
+      if (!title) return;
+      const body = prompt('Task body/notes (optional)') || '';
+      try{
+        const j = await window.createOpsTask(title, body);
+        const container = document.querySelector('#ops-log-container');
+        window.openOpsLogViewer(j.id, container);
+      }catch(e){ alert('Failed creating task'); }
+    };
     $('#btnSaveName').onclick = async () => {
       const title = prompt('Enter a title for this thread') || '';
       if(!title) return;
@@ -263,4 +274,27 @@
 
   window.initCodingPanel = init;
   document.addEventListener('DOMContentLoaded', ()=>{ try{ init(); }catch(e){} });
+})();
+
+// Minimal Ops UI hooks
+(function(){
+  async function createOpsTask(title, body){
+    const token = localStorage.getItem('ADMIN_TOKEN') || '';
+    const res = await fetch('/ops/tasks', {method:'POST', headers: {'content-type':'application/json', 'X-Admin-Token': token}, body: JSON.stringify({title, body})});
+    if(!res.ok) throw new Error('failed');
+    return await res.json();
+  }
+
+  function openOpsLogViewer(taskId, container){
+    container.innerHTML = '';
+    const pre = document.createElement('div'); pre.className = 'ops-log'; container.appendChild(pre);
+    const src = new EventSource(`/ops/tasks/${taskId}/stream`);
+    src.onmessage = (e) => { try{ const d = JSON.parse(e.data); pre.textContent += JSON.stringify(d) + '\n'; pre.scrollTop = pre.scrollHeight; }catch(_){} };
+    src.onerror = ()=>{ src.close(); };
+    return src;
+  }
+
+  // Expose for test hooks
+  window.createOpsTask = createOpsTask;
+  window.openOpsLogViewer = openOpsLogViewer;
 })();

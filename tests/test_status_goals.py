@@ -8,7 +8,8 @@ def test_goals_api():
     assert r.status_code == 200
     body = r.json()
     assert 'items' in body and isinstance(body['items'], list)
-    assert any(i.get('status','').startswith('DONE') for i in body['items'])
+    # Accept statuses that indicate completion or live availability
+    assert any(i.get('status','').startswith(('DONE','LIVE','BUILT')) for i in body['items'])
 
 
 def test_goals_page_serves():

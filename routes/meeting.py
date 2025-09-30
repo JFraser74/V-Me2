@@ -15,16 +15,32 @@ _store: Dict[str, List[dict]] = {}
 _insert_meeting = None
 _insert_segment = None
 _finalize_meeting = None
-try:
-    from lib.supabase_client import insert_meeting, insert_segment, finalize_meeting
-    _insert_meeting = insert_meeting
-    _insert_segment = insert_segment
-    _finalize_meeting = finalize_meeting
-except Exception:
-    # supabase client not configured / not available; real-mode will be best-effort no-op
-    _insert_meeting = None
-    _insert_segment = None
-    _finalize_meeting = None
+
+
+def _resolve_helpers():
+    """Resolve supabase helper functions at call time.
+
+    Tests may monkeypatch lib.supabase_client.insert_meeting etc.; by resolving
+    at call-time we ensure those monkeypatches are visible to the router.
+    """
+    global _insert_meeting, _insert_segment, _finalize_meeting
+    try:
+        # import inside function so test monkeypatching of lib.supabase_client works
+        from lib import supabase_client as _sb
+        _insert_meeting = getattr(_sb, "insert_meeting", None)
+        _insert_segment = getattr(_sb, "insert_segment", None)
+        _finalize_meeting = getattr(_sb, "finalize_meeting", None)
+    except Exception:
+        try:
+            # fallback to older path
+            from lib.supabase_client import insert_meeting, insert_segment, finalize_meeting
+            _insert_meeting = insert_meeting
+            _insert_segment = insert_segment
+            _finalize_meeting = finalize_meeting
+        except Exception:
+            _insert_meeting = None
+            _insert_segment = None
+            _finalize_meeting = None
 
 
 class BeginOut(BaseModel):
@@ -62,6 +78,9 @@ def begin():
         return BeginOut(meeting_id=mid)
 
     # Real mode: attempt best-effort insert into Supabase to get a numeric meeting id.
+    # Resolve helpers now so tests that monkeypatch lib.supabase_client are effective
+    _resolve_helpers()
+
     if _insert_meeting:
         try:
             mid_num = _insert_meeting(label=None)
