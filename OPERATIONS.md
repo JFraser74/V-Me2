@@ -42,4 +42,23 @@ Notes
 SSE auth: browsers can’t add custom headers to EventSource, so dev uses ?admin_token=….  
 Planned: ephemeral signed stream_token returned by POST /ops/tasks, validated by /stream.
 
+SSE auth (ephemeral tokens)
+
+To avoid exposing the admin token in query params for EventSource, the server now supports short-lived signed stream tokens. Use the admin-only endpoint:
+
+  POST /ops/stream_tokens
+
+Body: { "task_id": 123 }
+
+Response: { "token": "<signed>", "expires_at": "<iso>" }
+
+Then open an EventSource to the stream endpoint using the token:
+
+  const res = await fetch('/ops/stream_tokens', { method:'POST', headers:{'Content-Type':'application/json','X-Admin-Token': ADMIN }, body: JSON.stringify({task_id: ID}) });
+  const j = await res.json();
+  const token = j.token;
+  const es = new EventSource(`/ops/tasks/${ID}/stream?token=${token}`);
+
+Set `OPS_STREAM_SECRET` in your environment to a secret used to HMAC-sign tokens. If unset, `SETTINGS_ADMIN_TOKEN` will be used as fallback (not recommended for production).
+
 Persisted schema: va_tasks(id, created_at, title, status); va_task_events(id, created_at, task_id, kind, data_json).
