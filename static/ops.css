@@ -1,0 +1,8 @@
+:root{--bg:#071122;--panel:#0b1220;--accent:#0ea5a4}
+body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:12px;background:var(--bg);color:#e6eef8}
+h1{margin:0 0 8px 0}
+table{width:100%;border-collapse:collapse;background:#071827}
+thead th{background:#06121a;color:#9fd}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:rgba(255,255,255,0.02)}
+#ops-log{background:#040506;color:#bfe7c7;padding:8px;border-radius:6px;max-height:400px;overflow:auto}

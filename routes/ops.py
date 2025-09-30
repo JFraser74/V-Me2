@@ -164,7 +164,8 @@ async def create_task(request: Request, payload: Dict[str, Any], x_admin_token: 
 @router.post('/stream_tokens')
 async def create_stream_token(request: Request, payload: Dict[str, Any] = Body(...), x_admin_token: Optional[str] = Header(None)):
     """Admin-gated: issue a short-lived token for a given task_id used for SSE streams."""
-    if not _is_admin(request, x_admin_token):
+    # allow in dev local mode for easier testing
+    if not _is_admin(request, x_admin_token) and os.getenv('DEV_LOCAL_LLM', '').lower() not in ('1', 'true', 'yes'):
         return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
     try:
         task_id = int(payload.get('task_id'))
@@ -174,10 +175,26 @@ async def create_stream_token(request: Request, payload: Dict[str, Any] = Body(.
     return {'token': token, 'expires_at': datetime.utcfromtimestamp(exp).isoformat() + 'Z'}
 
 
+@router.get('/stream_tokens')
+async def get_stream_token(request: Request, task_id: Optional[int] = None, x_admin_token: Optional[str] = Header(None)):
+    """GET variant for convenience: /ops/stream_tokens?task_id=123
+    This mirrors `create_stream_token` but uses query param. Allowed in DEV_LOCAL_LLM for local testing.
+    """
+    # allow in dev local mode for easier testing
+    if not _is_admin(request, x_admin_token) and os.getenv('DEV_LOCAL_LLM', '').lower() not in ('1', 'true', 'yes'):
+        return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
+    try:
+        tid = int(task_id)
+    except Exception:
+        raise HTTPException(400, 'task_id required')
+    token, exp = _make_token({'task_id': tid}, ttl_seconds=300)
+    return {'token': token, 'expires_at': datetime.utcfromtimestamp(exp).isoformat() + 'Z'}
+
+
 @router.get('/tasks')
 async def list_tasks(limit: int = 20, x_admin_token: Optional[str] = Header(None), request: Request = None):
-    # admin-gated read
-    if not _is_admin(request, x_admin_token):
+    # admin-gated read; allow in DEV_LOCAL_LLM for local/testing
+    if not _is_admin(request, x_admin_token) and os.getenv('DEV_LOCAL_LLM', '').lower() not in ('1', 'true', 'yes'):
         return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
     try:
         sb = _sbmod._client()
@@ -186,12 +203,12 @@ async def list_tasks(limit: int = 20, x_admin_token: Optional[str] = Header(None
     if sb:
         try:
             res = sb.table('va_tasks').select('*').order('created_at', desc=True).limit(limit).execute()
-            return {'items': res.data or []}
+            return res.data or []
         except Exception:
             pass
     # fallback to in-proc
     items = sorted((_tasks_store or {}).values(), key=lambda x: x.get('created_at', 0), reverse=True)[:limit]
-    return {'items': items}
+    return items
 
 
 @router.get('/tasks/{task_id}')
