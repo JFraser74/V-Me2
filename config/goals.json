@@ -74,19 +74,22 @@
     "goal": "Voice MVP (Whisper/OpenAI)",
     "how": "Server: POST /api/audio/upload → Whisper → reply/log; UI: mic toggle; extend smoke",
     "tools": "OPENAI_API_KEY (Whisper), SUPABASE_*",
-    "status": "WAITING FOR: create branch feat/voice-mvp-whisper; implement endpoints & UI; HTTPS on deploy"
+    "status": "LIVE",
+    "notes": "Fake mode live (/api/audio/upload, /static/mic.html). Real Whisper pending OPENAI_API_KEY + toggle."
   },
   {
     "goal": "Meeting Mode (listen-only)",
     "how": "Continuous capture→Supabase; /api/meeting/end summarizes",
     "tools": "SUPABASE_*",
-    "status": "WAITING FOR: Voice MVP foundation"
+    "status": "BUILT & TESTED",
+    "notes": "Fake mode + write-only Supabase persistence merged (#11, #12). Real ASR pending."
   },
   {
     "goal": "Conversation memory & speed",
     "how": "Persist sessions; add streaming SSE & optional TTS; optimistic UI",
     "tools": "SUPABASE_*, TTS key (OpenAI/ElevenLabs), optional REDIS_URL",
-    "status": "WAITING FOR: Voice MVP"
+    "status": "PARTIAL",
+    "notes": "SSE streaming merged (#27). Threads API merged (#25). Save & Name pending (#29). TTS optional."
   },
   {
     "goal": "Voice-driven Gmail actions",
