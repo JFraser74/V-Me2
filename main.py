@@ -259,6 +259,14 @@ try:
 except Exception:
   pass
 
+# Ensure threads router (Coding panel threads) is mounted (safe include)
+try:
+  from routes.threads import router as threads_router
+  if threads_router:
+    app.include_router(threads_router)
+except Exception:
+  pass
+
 # Simple file-backed settings API used by the UI. This keeps settings local to the
 # repository (no external dependency) and allows toggling features such as
 # AGENT_USE_LANGGRAPH from the web UI. Settings are persisted to

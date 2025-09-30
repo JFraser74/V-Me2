@@ -23,9 +23,10 @@ body{margin:0;background:var(--bg);color:#e6eef8}
 .bubble.assistant.streaming .dots{display:inline-block;margin-left:.3rem;opacity:.6;animation:pulse 1s infinite ease-in-out}
 @keyframes pulse{0%{opacity:.2}50%{opacity:.9}100%{opacity:.2}}
 
+/* savebar (inline quick-save + naming) */
+.savebar{display:flex;gap:8px;align-items:center;padding:8px;border-top:1px solid rgba(255,255,255,0.02);background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent)}
+.savebar #save-btn{padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:#072b2b;color:#eaffff}
+.inline-name{display:flex;gap:6px;align-items:center}
+.inline-name input{padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:#071827;color:#eaf6ff}
+.hidden{display:none}
 
-
-#mic-btn.active { color: #d00; }
-#mic-btn.active::after { content: ' ●'; }
-.muted { color:#888; font-size:12px; }
-.hidden { display:none; }
