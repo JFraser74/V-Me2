@@ -276,6 +276,17 @@
   });
 
     refreshRecent(); render();
+    // detect admin affordances (Option A): try requesting a stream token for task_id=0
+      // Detect admin mode (GET /ops/stream_tokens?task_id=0, unhide link on 200)
+      (async () => {
+          try {
+              const r = await fetch('/ops/stream_tokens?task_id=0');
+              if (r.ok) {
+                  window.VM_ADMIN_UI = true;
+                  document.getElementById('linkOpsAdmin')?.classList.remove('hidden');
+              }
+          } catch (_) {}
+      })();
   }
   // Savebar inline controls
   $('#save-btn').onclick = () => { showInlineName(); };
@@ -332,3 +343,7 @@
   window.createOpsTask = createOpsTask;
   window.openOpsLogViewer = openOpsLogViewer;
 })();
+
+// Confirm prompt hook (E3 placeholder)
+window.vmConfirm = async function(msg){ return window.confirm(msg); };
+

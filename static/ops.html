@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ops Viewer</title>
+  <link rel="stylesheet" href="/static/ops.css?v=" + Date.now()>
+  <script defer src="/static/ops.js?v=" + Date.now()></script>
+</head>
+<body>
+  <h1>Ops Viewer</h1>
+  <div>
+    <table id="ops-table" border="1" cellspacing="0" cellpadding="6">
+      <thead>
+        <tr><th>id</th><th>created_at</th><th>title</th><th>status</th></tr>
+      </thead>
+      <tbody id="ops-tbody"></tbody>
+    </table>
+  </div>
+  <h2>Log</h2>
+  <pre id="ops-log">(select a task to stream)</pre>
+</body>
+</html>
