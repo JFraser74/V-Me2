@@ -155,6 +155,22 @@
     }
   }
 
+  // Delegate to Agent (Planner hand-off)
+  async function delegateToAgent(){
+    try{ if (typeof stopDictation === 'function') { try{ stopDictation(true); }catch(_){} } }catch(e){}
+    const input = document.getElementById('composer-input');
+    const body = (input?.value || '').trim() || '(no body)';
+    const title = prompt('Task title?'); if (!title) return;
+    try{
+      const r = await fetch('/agent/plan', { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({ title, body }) });
+      if(!r.ok){ alert('Failed to create task'); return; }
+      const data = await r.json();
+      if (data && data.task_id){
+        openOpsLogViewer(data.task_id, document.querySelector('#ops-log-container'));
+      }
+    }catch(e){ alert('Failed to create task'); }
+  }
+
   // Save & Name (C5)
   async function saveOrRenameThread(title){
     title = (title||'').trim(); if(!title) return;
@@ -177,6 +193,8 @@
 
   function init(){
     $('#btnNew').onclick = () => { newChat(); };
+    const btnDel = $('#btnDelegate');
+    if (btnDel) btnDel.onclick = delegateToAgent;
     const btnOps = $('#btnNewOps');
     if (btnOps) btnOps.onclick = async () => {
       const title = prompt('Task title') || '';

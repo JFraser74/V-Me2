@@ -21,6 +21,8 @@ import asyncio
 import json
 from fastapi.responses import StreamingResponse
 
+from pydantic import Field
+
 # try to import workspace read/write tools; fall back to local FS
 try:
     from tools.codespace import read_file_tool, write_file_tool
@@ -347,6 +349,9 @@ def select(table: str = Query(...), limit: int = Query(5), order: str | None = N
         sb = None
     if not sb:
         return []
+    
+    
+    
     try:
         q = sb.table(table).select("*")
         if order:
@@ -359,6 +364,33 @@ def select(table: str = Query(...), limit: int = Query(5), order: str | None = N
         return res.data or []
     except Exception:
         return []
+
+
+# Planner hand-off: create a task server-side and enqueue it (no external HTTP hop)
+class PlanIn(BaseModel):
+    title: str = Field(min_length=1)
+    body: str = Field(min_length=1)
+
+
+class PlanOut(BaseModel):
+    task_id: int
+
+
+@router.post("/plan", response_model=PlanOut)
+def plan(in_: PlanIn):
+    """Enqueue a task into the Ops runner (server-side enqueue, no external HTTP)."""
+    try:
+        # Import at call time so tests can monkeypatch lib.ops_service.enqueue_task
+        try:
+            from lib.ops_service import enqueue_task as enqueue_ops_task
+        except Exception:
+            enqueue_ops_task = None
+        if enqueue_ops_task is None:
+            raise RuntimeError('enqueue not available')
+        tid = enqueue_ops_task(in_.title.strip(), in_.body.strip())
+        return PlanOut(task_id=int(tid))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"failed to enqueue task: {e}")
 
 
 # --- SSE streaming endpoint (top-level) ---------------------------------------

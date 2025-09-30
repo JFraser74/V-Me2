@@ -10,11 +10,31 @@ _lock = threading.Lock()
 _worker_thread = None
 _stop = False
 
+# In-proc fallback task store and id generator
+_inproc_next_id = 1000
+_inproc_tasks = {}
+
 
 def enqueue_task(task: Dict[str, Any]):
     with _lock:
         _queue.append(task)
     _ensure_worker()
+
+
+def inproc_create_task(title: str, body: str) -> int:
+    global _inproc_next_id
+    _inproc_next_id += 1
+    tid = _inproc_next_id
+    try:
+        _inproc_tasks[tid] = {"id": tid, "title": title, "body": body, "status": "queued"}
+    except Exception:
+        pass
+    return tid
+
+
+def enqueue(task: Dict[str, Any]):
+    """Alias used by external services to enqueue a task dict into the worker queue."""
+    enqueue_task(task)
 
 
 def _ensure_worker():
