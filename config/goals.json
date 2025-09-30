@@ -139,6 +139,7 @@
     "goal": "Development hand-off to V-ME2 Agent",
     "how": "Transition operational planning/merge/deploy orchestration into the V-Me2 LangGraph agent (GPT-5 or future model) running inside the V-Me2 environment with sustained contextual memory and direct tool access. This removes the external human-as-mediator pattern and allows the agent to create tasks, run Ops, and manage PRs when policy/confirm flags permit.",
     "tools": "LangGraph agent, SETTINGS_ADMIN_TOKEN, GITHUB_TOKEN/PAT, RAILWAY_TOKEN, SUPABASE_*, ops orchestrator",
-    "status": "PLANNED (requires Ops Orchestrator merged, additional policy & security review, and CI/deploy integration)"
+    "status": "PLANNED (requires Ops Orchestrator merged, additional policy & security review, and CI/deploy integration)",
+    "notes": "Planner hand-off (/agent/plan) implemented and merged; Delegate to Agent added to Coding panel. Proceed with E1-E3 to make V-Me2 the primary agent."
   }
 ]
