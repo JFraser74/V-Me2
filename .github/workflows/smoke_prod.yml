@@ -1,0 +1,41 @@
+name: smoke-prod
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: ${{ secrets.BASE_URL }}
+      SETTINGS_ADMIN_TOKEN: ${{ secrets.SETTINGS_ADMIN_TOKEN }}
+      DEV_LOCAL_LLM: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt || true
+
+      - name: Make smoke script executable
+        run: chmod +x scripts/smoke_all.sh
+
+      - name: Run smoke script
+        run: |
+          mkdir -p .smoke_out || true
+          SMOKE_SAVE_DIR=.smoke_out DEV_LOCAL_LLM=1 BASE_URL="$BASE_URL" SETTINGS_ADMIN_TOKEN="$SETTINGS_ADMIN_TOKEN" ./scripts/smoke_all.sh
+
+      - name: List smoke output
+        run: ls -lah .smoke_out || true
+
+      - name: Upload smoke artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-prod-output
+          path: .smoke_out
