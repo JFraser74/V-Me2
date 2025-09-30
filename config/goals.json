@@ -118,6 +118,24 @@
     "notes": "Admin-gated API + SSE in Coding panel; fake-mode deterministic stream; best-effort Supabase persistence. SSE auth hardening (ephemeral tokens) implemented. Attachments placeholder added to the Coding panel (Attach button shows a placeholder alert)."
   },
   {
+    "goal": "Ops Queue Viewer",
+    "how": "First-party read-only ops viewer at /static/ops.html; lists tasks and opens tokenized SSE streams; gated to admin in prod, enabled in DEV_LOCAL_LLM for testing.",
+    "tools": "SETTINGS_ADMIN_TOKEN, DEV_LOCAL_LLM",
+    "status": "DONE"
+  },
+  {
+    "goal": "Admin Mode UI (Coding panel)",
+    "how": "Show admin-only links and controls when VM_ADMIN_UI is detected (GET /ops/stream_tokens?task_id=0).",
+    "tools": "—",
+    "status": "DONE"
+  },
+  {
+    "goal": "Confirm placeholder (vmConfirm)",
+    "how": "Provide window.vmConfirm that proxies to window.confirm to be used by gated write flows.",
+    "tools": "—",
+    "status": "DONE"
+  },
+  {
     "goal": "Railway GraphQL projects resolver",
     "how": "Use CLI wrapper until GraphQL error resolved; track support ticket",
     "tools": "RAILWAY_TOKEN",
