@@ -330,4 +330,37 @@ smoke_threads_list() {
 
 # Always attempt threads list (best-effort)
 smoke_threads_list
+
+# --- ops task + tokenized stream smoke (if admin token available) ---
+if [[ -n "$ADMIN_TOKEN" ]]; then
+  echo "[info] creating ops task for smoke"
+  # create a small task
+  OT_JSON="$TMPDIR/ops_task.json"
+  CODE=$(req POST "$BASE_URL/ops/tasks" "$OT_JSON" -H "X-Admin-Token: $ADMIN_TOKEN" -H "content-type: application/json" --data '{"title":"smoke-task","body":"smoke"}') || true
+  if [[ "$CODE" == "200" ]]; then
+    TASK_ID=$(python3 -c 'import sys,json
+d=json.load(open(sys.argv[1]));print(d.get("id",""))' "$OT_JSON") || true
+    if [[ -n "$TASK_ID" ]]; then
+      # Try tokenized stream if OPS_STREAM_SECRET or admin token present
+      if [[ -n "${OPS_STREAM_SECRET:-}" || -n "$ADMIN_TOKEN" ]]; then
+        # request token (if server supports it)
+        TOK_JSON="$TMPDIR/ops_tok.json"
+        CODE2=$(req POST "$BASE_URL/ops/stream_tokens" "$TOK_JSON" -H "X-Admin-Token: $ADMIN_TOKEN" -H "content-type: application/json" --data "{\"task_id\": $TASK_ID}") || true
+        if [[ "$CODE2" == "200" ]]; then
+          TOKEN=$(python3 -c 'import sys,json
+try: print(json.load(open(sys.argv[1]))["token"])
+except Exception: print("")' "$TOK_JSON") || true
+          if [[ -n "$TOKEN" ]]; then
+            echo "[info] streaming ops task via token"
+            curl -sS -N "$BASE_URL/ops/tasks/$TASK_ID/stream?token=$TOKEN" -o "$SAVE_DIR/ops_stream_${TASK_ID}.txt" || true
+            echo "[saved] $SAVE_DIR/ops_stream_${TASK_ID}.txt"
+          fi
+        fi
+      fi
+      # legacy fallback: admin token in query param
+      curl -sS -N "$BASE_URL/ops/tasks/$TASK_ID/stream?admin_token=$ADMIN_TOKEN" -o "$SAVE_DIR/ops_stream_${TASK_ID}_legacy.txt" || true
+      echo "[saved] $SAVE_DIR/ops_stream_${TASK_ID}_legacy.txt"
+    fi
+  fi
+fi
  
