@@ -254,3 +254,42 @@ def finalize_meeting(meeting_id: int, summary: str | None, bullets: list | None,
         return True
     except Exception:
         return False
+
+
+# ---------------- Tasks helpers (write-only) ----------------
+def insert_task(title: str, body: str | None = None) -> int | None:
+    """Insert a va_tasks row and return the new id, or None on failure / missing client."""
+    sb = _client()
+    if not sb:
+        return None
+    try:
+        payload = {'title': title, 'body': body}
+        res = sb.table('va_tasks').insert(payload).execute()
+        return res.data[0]['id'] if res.data else None
+    except Exception:
+        return None
+
+
+def update_task_status(id: int, status: str, branch: str | None = None, pr_number: int | None = None, error: str | None = None) -> bool:
+    sb = _client()
+    if not sb:
+        return False
+    try:
+        upd = {'status': status}
+        if branch is not None: upd['branch'] = branch
+        if pr_number is not None: upd['pr_number'] = pr_number
+        if error is not None: upd['error'] = error
+        sb.table('va_tasks').update(upd).eq('id', int(id)).execute()
+        return True
+    except Exception:
+        return False
+
+
+def insert_task_event(task_id: int, kind: str, data_dict: dict | None = None) -> None:
+    sb = _client()
+    if not sb:
+        return
+    try:
+        sb.table('va_task_events').insert({'task_id': int(task_id), 'kind': kind, 'data': data_dict or {}}).execute()
+    except Exception:
+        pass

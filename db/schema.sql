@@ -50,7 +50,6 @@ on conflict (key) do nothing;
 -- NOTE: Service Role bypasses RLS; define finer-grained policies later for anon/public use.
 
 
--- Meetings: stores meeting metadata and segments (write-only wiring uses these)
 create table if not exists va_meetings (
   id bigint primary key generated always as identity,
   created_at timestamptz default now(),
@@ -61,6 +60,27 @@ create table if not exists va_meetings (
 );
 alter table va_meetings enable row level security;
 
+-- Task queue (write-only, safe if Supabase not configured)
+create table if not exists va_tasks (
+  id bigint primary key generated always as identity,
+  created_at timestamptz default now(),
+  title text not null,
+  body text,
+  status text check (status in ('queued','running','success','failed','cancelled')) default 'queued',
+  branch text,
+  pr_number bigint,
+  error text
+);
+create index if not exists idx_va_tasks_status on va_tasks(status);
+
+create table if not exists va_task_events (
+  id bigint primary key generated always as identity,
+  created_at timestamptz default now(),
+  task_id bigint references va_tasks(id) on delete cascade,
+  kind text,               -- 'log' | 'tick' | 'done' | 'error'
+  data jsonb               -- free-form event payload
+);
+create index if not exists idx_va_task_events_task on va_task_events(task_id);
 create table if not exists va_meeting_segments (
   id bigint primary key generated always as identity,
   created_at timestamptz default now(),

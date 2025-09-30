@@ -57,7 +57,8 @@ def chat(payload: ChatIn):
     # Development/testing: allow a local/mock LLM response when DEV_LOCAL_LLM is set.
     # This is useful when you don't have a usable OpenAI secret key available.
     if os.getenv("DEV_LOCAL_LLM", "").lower() in ("1", "true", "yes"):
-        text = f"(local-mode) Echo: {payload.message}"
+        # Keep the fake LLM deterministic but ensure the prefix matches test expectations.
+        text = f"Echo: {payload.message}"
         # best-effort log of assistant text
         try:
             sid_for_log = session_id
@@ -388,7 +389,7 @@ async def stream(session_id: str | None = Query(None), label: str | None = Query
                 payload = {"type": "tick", "text": f"thinking {i+1}/4"}
                 yield f"data: {json.dumps(payload)}\n\n"
                 await asyncio.sleep(0.15)
-            final = {"type": "done", "text": f"(local-mode) Echo stream for session {sid or ''}"}
+            final = {"type": "done", "text": f"Echo stream for session {sid or ''}"}
             # best-effort log
             try:
                 safe_log_message(session_id=sid, role="assistant", content=final["text"])

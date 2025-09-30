@@ -11,6 +11,7 @@
     <div class="sidebar" id="coding-sidebar">
       <div class="sidebar-actions">
         <button id="btnNew">New chat</button>
+        <button id="btnNewOps">New Ops Task…</button>
         <button id="btnSaveName">Save & name</button>
       </div>
       <div class="recent-list" id="recentList"></div>
@@ -18,8 +19,17 @@
 
     <div class="main" id="coding-main">
       <div class="history" id="history"></div>
+        <div id="ops-log-container" style="margin:8px 0;"></div>
       <div class="composer" id="composer">
         <textarea id="composer-input" placeholder="Type a message..."></textarea>
+        <div class="savebar" id="savebar">
+          <button id="save-btn">Save</button>
+          <div class="inline-name hidden" id="name-inline">
+            <input id="name-input" placeholder="Thread name" />
+            <button id="name-save-btn">Save</button>
+            <button id="name-cancel-btn">Cancel</button>
+          </div>
+        </div>
         <div class="controls">
           <button id="mic-btn">🎙️</button> <span id="mic-hint" class="muted hidden">listening…</span>
           <button id="attach-btn">+</button>

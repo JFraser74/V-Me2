@@ -2,6 +2,7 @@
   const $ = (sel) => document.querySelector(sel);
   let currentSessionId = "";
   let messages = [];
+    let namePromptShown = false; // only show inline name the first time a session is created
 
   function renderRecent(items){
     const el = $('#recentList'); el.innerHTML = '';
@@ -87,17 +88,20 @@
         } catch (_) {}
       });
 
-      src.addEventListener('done', (e) => {
-        try {
-          const data = JSON.parse(e.data || '{}');
-          if (data.text) full = data.text;
-          if (data.session_id) newSessionId = data.session_id;
-        } catch (_) {}
-        finalizeAssistant(node, full);
-        if (newSessionId && newSessionId !== currentSessionId) currentSessionId = newSessionId;
-        cleanup();
-        resolve({ text: full, sessionId: newSessionId });
-      });
+        src.addEventListener('done', (e) => {
+          try {
+            const data = JSON.parse(e.data || '{}');
+            if (data.text) full = data.text;
+            if (data.session_id) newSessionId = data.session_id;
+          } catch (_) {}
+          finalizeAssistant(node, full);
+          if (newSessionId && newSessionId !== currentSessionId) {
+            currentSessionId = newSessionId;
+            if (!namePromptShown) { try { showInlineName(); } catch(e){} namePromptShown = true; }
+          }
+          cleanup();
+          resolve({ text: full, sessionId: newSessionId });
+        });
 
       src.addEventListener('error', (e) => {
         cleanup();
@@ -119,6 +123,8 @@
   }
 
   async function sendMessage(){
+    // stop any dictation before reading the composer to avoid mid-send edits
+    try { if (typeof stopDictation === 'function') stopDictation(true); } catch(e){}
     const input = $('#composer-input'); const text = (input.value || '').trim(); if(!text) return;
     setComposerBusy && setComposerBusy(true);
     try {
@@ -126,26 +132,62 @@
       await sendMessageStreaming({ text, sessionId: currentSessionId });
     } catch (err) {
       // fallback to one-shot POST
-      const body = { message: text }; if (currentSessionId) body.session_id = currentSessionId;
+      const body = { message: text };
+      if (currentSessionId) body.session_id = currentSessionId;
       try {
         const res = await fetch('/agent/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
         const j = await res.json();
         appendUserBubble(text);
         appendAssistantBubble(j.text || j.message || '');
-        if (j.session_id && j.session_id !== currentSessionId) currentSessionId = String(j.session_id);
+        if (j.session_id && j.session_id !== currentSessionId) {
+          currentSessionId = String(j.session_id);
+          if (!namePromptShown) { try { showInlineName(); } catch(e){} namePromptShown = true; }
+        }
       } catch (e) {
         appendAssistantBubble('(error)');
       }
     } finally {
-      input.value = '';
-      stopDictationIfActive && stopDictationIfActive();
+      try { input.value = ''; } catch(e){}
+      // maintain compatibility with existing stop hook
+      try { if (typeof stopDictationIfActive === 'function') stopDictationIfActive(); } catch(e){}
       setComposerBusy && setComposerBusy(false);
       await refreshRecent();
     }
   }
 
+  // Save & Name (C5)
+  async function saveOrRenameThread(title){
+    title = (title||'').trim(); if(!title) return;
+    try{
+      if(!currentSessionId){
+        const res = await fetch('/api/threads',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({title})});
+        const data = await res.json(); if(data && data.id) currentSessionId = String(data.id);
+      }else{
+        await fetch(`/api/threads/${encodeURIComponent(currentSessionId)}/title`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({title})});
+      }
+      await loadRecent();
+    }catch(e){ console.warn('save/rename failed', e); }
+  }
+  function showInlineName(){ document.querySelector('#name-inline')?.classList.remove('hidden'); document.querySelector('#name-input')?.focus(); }
+  function hideInlineName(){ document.querySelector('#name-inline')?.classList.add('hidden'); }
+  function newChat(){ currentSessionId=''; messages = []; render(); try{ document.querySelector('#composer-input').value = ''; }catch(e){} hideInlineName(); namePromptShown = false; refreshRecent(); }
+  async function loadRecent(){
+    try{ const res = await fetch('/api/threads?limit=20'); const data = await res.json(); renderRecent(Array.isArray(data)?data:(data.items||[])); }catch(e){}
+  }
+
   function init(){
-    $('#btnNew').onclick = () => { currentSessionId=''; messages = []; render(); };
+    $('#btnNew').onclick = () => { newChat(); };
+    const btnOps = $('#btnNewOps');
+    if (btnOps) btnOps.onclick = async () => {
+      const title = prompt('Task title') || '';
+      if (!title) return;
+      const body = prompt('Task body/notes (optional)') || '';
+      try{
+        const j = await window.createOpsTask(title, body);
+        const container = document.querySelector('#ops-log-container');
+        window.openOpsLogViewer(j.id, container);
+      }catch(e){ alert('Failed creating task'); }
+    };
     $('#btnSaveName').onclick = async () => {
       const title = prompt('Enter a title for this thread') || '';
       if(!title) return;
@@ -217,7 +259,42 @@
 
     refreshRecent(); render();
   }
+  // Savebar inline controls
+  $('#save-btn').onclick = () => { showInlineName(); };
+  $('#name-save-btn').onclick = async () => {
+    const v = document.querySelector('#name-input')?.value || '';
+    await saveOrRenameThread(v);
+    hideInlineName();
+  };
+  $('#name-cancel-btn').onclick = () => { hideInlineName(); };
+  document.querySelector('#name-input')?.addEventListener('keydown', async (ev) => {
+    if(ev.key === 'Enter') { ev.preventDefault(); $('#name-save-btn').click(); }
+    if(ev.key === 'Escape') { ev.preventDefault(); hideInlineName(); }
+  });
 
   window.initCodingPanel = init;
   document.addEventListener('DOMContentLoaded', ()=>{ try{ init(); }catch(e){} });
+})();
+
+// Minimal Ops UI hooks
+(function(){
+  async function createOpsTask(title, body){
+    const token = localStorage.getItem('ADMIN_TOKEN') || '';
+    const res = await fetch('/ops/tasks', {method:'POST', headers: {'content-type':'application/json', 'X-Admin-Token': token}, body: JSON.stringify({title, body})});
+    if(!res.ok) throw new Error('failed');
+    return await res.json();
+  }
+
+  function openOpsLogViewer(taskId, container){
+    container.innerHTML = '';
+    const pre = document.createElement('div'); pre.className = 'ops-log'; container.appendChild(pre);
+    const src = new EventSource(`/ops/tasks/${taskId}/stream`);
+    src.onmessage = (e) => { try{ const d = JSON.parse(e.data); pre.textContent += JSON.stringify(d) + '\n'; pre.scrollTop = pre.scrollHeight; }catch(_){} };
+    src.onerror = ()=>{ src.close(); };
+    return src;
+  }
+
+  // Expose for test hooks
+  window.createOpsTask = createOpsTask;
+  window.openOpsLogViewer = openOpsLogViewer;
 })();

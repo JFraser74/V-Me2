@@ -259,6 +259,34 @@ try:
 except Exception:
   pass
 
+# Ensure threads router (Coding panel threads) is mounted (safe include)
+try:
+  from routes.threads import router as threads_router
+  if threads_router:
+    app.include_router(threads_router)
+except Exception:
+  pass
+
+# Ensure ops/router (Ops orchestrator) is mounted (safe include)
+try:
+  from routes.ops import router as ops_router
+  if ops_router:
+    app.include_router(ops_router)
+except Exception:
+  pass
+
+# start internal ops runner if available
+try:
+  from ops_runner import start_worker
+  @app.on_event('startup')
+  def _start_ops_runner():
+    try:
+      start_worker()
+    except Exception:
+      pass
+except Exception:
+  pass
+
 # Simple file-backed settings API used by the UI. This keeps settings local to the
 # repository (no external dependency) and allows toggling features such as
 # AGENT_USE_LANGGRAPH from the web UI. Settings are persisted to
