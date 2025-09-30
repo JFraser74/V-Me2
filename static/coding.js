@@ -288,10 +288,26 @@
   function openOpsLogViewer(taskId, container){
     container.innerHTML = '';
     const pre = document.createElement('div'); pre.className = 'ops-log'; container.appendChild(pre);
-    const src = new EventSource(`/ops/tasks/${taskId}/stream`);
-    src.onmessage = (e) => { try{ const d = JSON.parse(e.data); pre.textContent += JSON.stringify(d) + '\n'; pre.scrollTop = pre.scrollHeight; }catch(_){} };
-    src.onerror = ()=>{ src.close(); };
-    return src;
+    async function _openWithToken(){
+      try{
+        // if admin UI proxy or flag present, request a token first
+        if (window.VM_ADMIN_UI === true) {
+          const r = await fetch('/ops/stream_tokens', { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({task_id: taskId}) });
+          if (r.ok){ const j = await r.json(); const token = j.token; const src = new EventSource(`/ops/tasks/${taskId}/stream?token=${encodeURIComponent(token)}`);
+            src.onmessage = (e) => { try{ const d = JSON.parse(e.data); pre.textContent += JSON.stringify(d) + '\n'; pre.scrollTop = pre.scrollHeight; }catch(_){} };
+            src.onerror = ()=>{ src.close(); };
+            return src;
+          }
+        }
+      }catch(e){ /* fallthrough to legacy */ }
+      // legacy fallback (uses admin_token via localStorage or query)
+      const src = new EventSource(`/ops/tasks/${taskId}/stream`);
+      src.onmessage = (e) => { try{ const d = JSON.parse(e.data); pre.textContent += JSON.stringify(d) + '\n'; pre.scrollTop = pre.scrollHeight; }catch(_){} };
+      src.onerror = ()=>{ src.close(); };
+      return src;
+    }
+    _openWithToken();
+    return { close: ()=>{} };
   }
 
   // Expose for test hooks

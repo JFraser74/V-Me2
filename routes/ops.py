@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Request, Header, HTTPException
+from fastapi import APIRouter, Request, Header, HTTPException, Body
 from fastapi.responses import StreamingResponse, JSONResponse
 from typing import Optional, Dict, Any
+import hmac, hashlib, base64, secrets
+from datetime import datetime, timedelta
 import os, json, threading, time
 from collections import deque
 from vme_lib import supabase_client as _sbmod
@@ -85,6 +87,62 @@ def _append_event(task_id: int, kind: str, data: dict):
             dq.popleft()
 
 
+# --- SSE token helpers -------------------------------------------------
+def _b64u_encode(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode('ascii')
+
+def _b64u_decode(s: str) -> bytes:
+    # add padding
+    pad = '=' * (-len(s) % 4)
+    return base64.urlsafe_b64decode((s + pad).encode('ascii'))
+
+def _get_stream_secret() -> Optional[bytes]:
+    s = os.getenv('OPS_STREAM_SECRET') or os.getenv('SETTINGS_ADMIN_TOKEN')
+    if not s:
+        return None
+    return s.encode('utf-8')
+
+def _make_token(payload: dict, ttl_seconds: int = 300) -> str:
+    secret = _get_stream_secret()
+    exp = int(time.time()) + int(ttl_seconds)
+    payload2 = dict(payload)
+    payload2['exp'] = exp
+    payload2['nonce'] = secrets.token_hex(8)
+    j = json.dumps(payload2, separators=(',', ':'), sort_keys=True).encode('utf-8')
+    b64 = _b64u_encode(j)
+    if secret is None:
+        # unsigned token (not recommended) - still usable in dev if no secret configured
+        sig = _b64u_encode(b'')
+    else:
+        mac = hmac.new(secret, j, hashlib.sha256).digest()
+        sig = _b64u_encode(mac)
+    return f"{b64}.{sig}", payload2['exp']
+
+def _validate_token(token: str) -> Optional[dict]:
+    try:
+        parts = token.split('.')
+        if len(parts) != 2:
+            return None
+        b64, sig = parts
+        j = _b64u_decode(b64)
+        payload = json.loads(j.decode('utf-8'))
+        exp = int(payload.get('exp', 0))
+        if int(time.time()) > exp:
+            return None
+        secret = _get_stream_secret()
+        if secret is None:
+            # if no secret configured, accept unsigned tokens
+            return payload
+        expected_mac = hmac.new(secret, j, hashlib.sha256).digest()
+        provided = _b64u_decode(sig)
+        if not hmac.compare_digest(expected_mac, provided):
+            return None
+        return payload
+    except Exception:
+        return None
+
+
+
 @router.post('/tasks')
 async def create_task(request: Request, payload: Dict[str, Any], x_admin_token: Optional[str] = Header(None)):
     if not _is_admin(request, x_admin_token):
@@ -101,6 +159,19 @@ async def create_task(request: Request, payload: Dict[str, Any], x_admin_token: 
     except Exception:
         pass
     return {'id': tid}
+
+
+@router.post('/stream_tokens')
+async def create_stream_token(request: Request, payload: Dict[str, Any] = Body(...), x_admin_token: Optional[str] = Header(None)):
+    """Admin-gated: issue a short-lived token for a given task_id used for SSE streams."""
+    if not _is_admin(request, x_admin_token):
+        return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
+    try:
+        task_id = int(payload.get('task_id'))
+    except Exception:
+        raise HTTPException(400, 'task_id required')
+    token, exp = _make_token({'task_id': task_id}, ttl_seconds=300)
+    return {'token': token, 'expires_at': datetime.utcfromtimestamp(exp).isoformat() + 'Z'}
 
 
 @router.get('/tasks')
@@ -164,8 +235,21 @@ async def cancel_task(task_id: int, x_admin_token: Optional[str] = Header(None),
 
 @router.get('/tasks/{task_id}/stream')
 async def task_stream(request: Request, task_id: int, x_admin_token: Optional[str] = Header(None)):
-    if not _is_admin(request, x_admin_token):
-        return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
+    # allow either admin token (legacy) or a time-limited stream token via query param
+    token = None
+    try:
+        token = request.query_params.get('token')
+    except Exception:
+        token = None
+    if token:
+        payload = _validate_token(token)
+        if not payload:
+            return JSONResponse({'ok': False, 'error': 'invalid or expired token'}, status_code=403)
+        if int(payload.get('task_id', -1)) != int(task_id):
+            return JSONResponse({'ok': False, 'error': 'token task_id mismatch'}, status_code=403)
+    else:
+        if not _is_admin(request, x_admin_token):
+            return JSONResponse({'ok': False, 'error': 'admin token required'}, status_code=403)
 
     # simple SSE generator subscribing to in-proc events or querying Supabase every second
     async def gen():
