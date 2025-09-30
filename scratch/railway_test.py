@@ -12,8 +12,24 @@ headers = {
 
 # Read: GET projects
 read_url = 'https://backboard.railway.app/graphql/v2'
+# Railway support supplied this corrected GraphQL query body; it returns the
+# current authenticated user's workspaces and projects. Use RAILWAY_API_TOKEN
+# (or RAILWAY_PAT) in the environment when calling the backboard GraphQL API.
 read_query = {
-  "query": "{ projects { edges { node { id name } } } }"
+  "query": """query me {
+    me {
+      workspaces {
+        projects {
+          edges {
+            node {
+              id
+              name
+            }
+          }
+        }
+      }
+    }
+  }"""
 }
 read_response = requests.post(read_url, headers=headers, json=read_query)
 print('Read test (projects):', read_response.json() if read_response.ok else read_response.text)
@@ -26,12 +42,12 @@ if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=port)
 
 # install (if not installed) — check Railway docs for installer
-# login
-railway login
-
+# CLI examples (commented out so this file remains valid Python):
+# railway login
+#
 # link/init project from this repo
-railway init            # or `railway link` to attach to existing project
+# railway init            # or `railway link` to attach to existing project
 # create a new service (if CLI supports)
-railway service create <service-name>  # CLI command may differ; check `railway help`
+# railway service create <service-name>  # CLI command may differ; check `railway help`
 # set a variable in the current Railway project (recommended over putting tokens in files)
-railway variables set RAILWAY_PAT "paste_token_here"
+# railway variables set RAILWAY_PAT "paste_token_here"
