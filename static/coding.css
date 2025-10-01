@@ -31,3 +31,8 @@ body{margin:0;background:var(--bg);color:#e6eef8}
 .ops-log { background:#111; color:#0f0; padding:8px; font-family:monospace; max-height:200px; overflow:auto; border-radius:4px; }
 .hidden{display:none}
 
+/* Composer hardening */
+#composer{position:relative;z-index:2}
+#mic-hint{pointer-events:none}
+.hidden{display:none !important}
+

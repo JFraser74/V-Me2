@@ -151,6 +151,8 @@
       // maintain compatibility with existing stop hook
       try { if (typeof stopDictationIfActive === 'function') stopDictationIfActive(); } catch(e){}
       setComposerBusy && setComposerBusy(false);
+      // Re-assert input editable and focus so the user can continue typing
+      try{ input?.removeAttribute('disabled'); input?.removeAttribute('readonly'); input?.focus(); }catch(e){}
       await refreshRecent();
     }
   }
@@ -193,6 +195,15 @@
 
   function init(){
     $('#btnNew').onclick = () => { newChat(); };
+    // Composer input guard: ensure it's editable and key handling is sane
+    (function(){
+      const input = document.getElementById('composer-input');
+      if (!input) return;
+      try{ input.removeAttribute('disabled'); input.removeAttribute('readonly'); input.setAttribute('aria-live','polite'); }catch(e){}
+      input.addEventListener('keydown', (e)=>{
+        if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); const btn = document.getElementById('send-btn'); if (btn) btn.click(); }
+      });
+    })();
     const btnDel = $('#btnDelegate');
     if (btnDel) btnDel.onclick = delegateToAgent;
     const btnOps = $('#btnNewOps');
@@ -252,7 +263,7 @@
         if (e.results[i].isFinal){ finalText += (finalText && !finalText.endsWith(' ') ? ' ' : '') + chunk; }
         else { interim += chunk; }
       }
-      input.value = finalText + (interim ? ' ' + interim : '');
+      try{ input.value = finalText + (interim ? ' ' + interim : ''); }catch(e){}
     };
     recognition.onerror = () => stopDictation(true);
     recognition.onend = () => stopDictation(true);
@@ -266,6 +277,8 @@
     recognition = null;
     document.querySelector('#mic-btn')?.classList.remove('active');
     document.querySelector('#mic-hint')?.classList.add('hidden');
+    const input = document.querySelector('#composer-input');
+    try{ input?.removeAttribute('disabled'); input?.removeAttribute('readonly'); input?.removeAttribute('aria-busy'); }catch(e){}
     if (!silent) console.debug('Dictation stopped');
   }
 
