@@ -1,0 +1,5 @@
+main.py
+static/show_me_window.js
+.git_backups/
+routes/admin_seed.py
+scripts/seed_supabase_memory.py

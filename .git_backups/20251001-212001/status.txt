@@ -1,0 +1,6 @@
+## cleanup/wip-20251001-212001
+ M main.py
+ M static/show_me_window.js
+?? .git_backups/
+?? routes/admin_seed.py
+?? scripts/seed_supabase_memory.py
