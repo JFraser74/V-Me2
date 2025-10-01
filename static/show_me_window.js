@@ -369,4 +369,32 @@ try{
   setModeText('Chat');
   loadSettings();
   loadSessions();
+
+  // Defensive: if the coding panel elements aren't present on this page
+  // (for example /showme which doesn't inline coding.html), inject an
+  // iframe that points at the standalone coding page so the composer
+  // exists and is usable. This keeps initialization simple and avoids
+  // fragile DOM-insert/script-execution ordering issues.
+  (function ensureCodingPanel(){
+    try{
+      if (!document.querySelector('#coding-main') && location.pathname && location.pathname.indexOf('/showme') === 0) {
+        const mount = document.createElement('div');
+        mount.id = 'coding-iframe-mount';
+        mount.style.margin = '12px 0';
+        const ifr = document.createElement('iframe');
+        ifr.id = 'coding-iframe';
+        ifr.src = '/static/coding.html?v=' + Date.now();
+        ifr.title = 'Coding panel (embedded)';
+        ifr.style.width = '100%';
+        ifr.style.height = '560px';
+        ifr.style.border = '1px solid #232530';
+        ifr.style.borderRadius = '10px';
+        mount.appendChild(ifr);
+        // insert after the main wrap so styles stay consistent
+        const wrap = document.querySelector('.wrap') || document.body;
+        wrap.parentNode.insertBefore(mount, wrap.nextSibling);
+        ifr.addEventListener('load', ()=>{ try{ console.info('Embedded coding panel loaded'); }catch(e){} });
+      }
+    }catch(e){ console.warn('ensureCodingPanel failed', e); }
+  })();
 })();
