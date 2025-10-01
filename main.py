@@ -275,6 +275,14 @@ try:
 except Exception:
   pass
 
+# Mount admin seeding route (provides protected /api/admin/seed_memory)
+try:
+  from routes.admin_seed import router as admin_seed_router
+  if admin_seed_router:
+    app.include_router(admin_seed_router)
+except Exception:
+  pass
+
 # start internal ops runner if available
 try:
   from ops_runner import start_worker
