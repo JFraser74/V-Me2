@@ -146,10 +146,28 @@ def _build_graph():
             git_diff_tool,
             git_commit_tool,
             # add git_push_tool so the agent can push when explicitly confirmed
-            getattr(globals().get('git_push_tool', None), '__call__', None) or None,
+            globals().get('git_push_tool', None),
             sb_select_tool,
             sb_upsert_tool,
         ]
+
+    # Sanitize tools: LangGraph expects tool-like objects with a `name` attribute.
+    # Filter out any None or plain functions that don't provide `name` to avoid
+    # import-time crashes (we'll run without those tools instead).
+    sanitized_tools = []
+    for t in tools:
+        if not t:
+            continue
+        if hasattr(t, "name"):
+            sanitized_tools.append(t)
+        else:
+            # best-effort: skip non-tool callables and log for diagnostics
+            try:
+                print(f"va_graph: skipping tool (no .name): {getattr(t, '__name__', repr(t))}")
+            except Exception:
+                pass
+
+    tools = sanitized_tools
 
     _model = settings_get("OPENAI_MODEL", os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
     _api_key = settings_get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"), decrypt=True)
