@@ -533,6 +533,45 @@ async def api_post_settings_refresh(request: Request, x_admin_token: str | None 
       _load_github_tokens_from_supabase()
     except Exception:
       pass
+    # Attempt to proactively load OPENAI_API_KEY and AGENT_USE_LANGGRAPH from
+    # Supabase-backed settings into the process environment so an operator can
+    # write keys to va_settings and call /api/settings/refresh to apply them
+    # without a full process restart. This path is only executed when an
+    # authenticated admin calls /api/settings/refresh.
+    try:
+      try:
+        val = _sbmod.settings_get('OPENAI_API_KEY', default=None, decrypt=True)
+      except Exception:
+        val = None
+      if val:
+        if not isinstance(val, str):
+          val = str(val)
+        os.environ['OPENAI_API_KEY'] = val
+        try:
+          _log.info('Loaded OPENAI_API_KEY from Supabase into process env via refresh')
+        except Exception:
+          pass
+      # Also sync agent_use_langgraph flag if present
+      try:
+        ag = _sbmod.settings_get('agent_use_langgraph', default=None, decrypt=False)
+      except Exception:
+        ag = None
+      if ag is not None:
+        os.environ['AGENT_USE_LANGGRAPH'] = '1' if str(ag).lower() in ('1','true','yes') else '0'
+    except Exception:
+      pass
+
+    # Try to reload the in-process graph so LangGraph/ChatOpenAI picks up any
+    # new API key or configuration toggles. If we can't apply in-process a
+    # restart may still be required.
+    try:
+      import importlib
+      import graph.va_graph as _vg
+      if hasattr(_vg, '_Wrapper'):
+        _vg._singleton = _vg._Wrapper()
+        _log.info('Reinitialized graph after settings refresh')
+    except Exception:
+      pass
     return JSONResponse({'ok': True, 'cache': 'cleared'})
   except Exception as e:
     return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
@@ -781,6 +820,75 @@ async def api_debug_railway_inspect():
       out['summary'].append({'endpoint': name, 'error': str(e)[:400]})
 
   return JSONResponse(out)
+
+
+@app.get('/api/_debug/imports')
+async def api_debug_imports():
+  """Attempt to import optional ML/graph modules and report availability.
+
+  Returns simple booleans and environment flag snapshots (no secrets).
+  """
+  out = {
+    'langgraph importable': False,
+    'langchain_openai importable': False,
+    'langchain_core_messages importable': False,
+    'openai importable': False,
+    'OPENAI_API_KEY_in_env': False,
+    'AGENT_USE_LANGGRAPH': None,
+  }
+  try:
+    try:
+      import importlib
+      importlib.import_module('langgraph.prebuilt')
+      out['langgraph importable'] = True
+    except Exception:
+      out['langgraph importable'] = False
+    try:
+      importlib.import_module('langchain_openai')
+      out['langchain_openai importable'] = True
+    except Exception:
+      out['langchain_openai importable'] = False
+    try:
+      importlib.import_module('langchain_core.messages')
+      out['langchain_core_messages importable'] = True
+    except Exception:
+      out['langchain_core_messages importable'] = False
+    try:
+      importlib.import_module('openai')
+      out['openai importable'] = True
+    except Exception:
+      out['openai importable'] = False
+    out['OPENAI_API_KEY_in_env'] = bool(os.getenv('OPENAI_API_KEY'))
+    out['AGENT_USE_LANGGRAPH'] = os.getenv('AGENT_USE_LANGGRAPH')
+  except Exception as e:
+    return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
+  return JSONResponse({'ok': True, 'imports': out})
+
+
+@app.get('/api/public/auto_continue')
+async def api_public_auto_continue():
+  """Public, non-authenticated endpoint that returns whether the UI should
+  auto-approve prompts. This intentionally exposes only a single non-secret
+  boolean flag so clients can decide whether to show confirmation dialogs.
+  """
+  try:
+    # Prefer Supabase-backed settings when available
+    try:
+      val = _sbmod.settings_get('auto_continue', default=None, decrypt=False)
+    except Exception:
+      val = None
+    if val is None:
+      s = _load_settings() or {}
+      val = s.get('auto_continue')
+    # normalize to boolean
+    ok = False
+    if isinstance(val, str):
+      ok = val.lower() in ('1', 'true', 'yes')
+    else:
+      ok = bool(val)
+    return JSONResponse({'ok': True, 'auto_continue': bool(ok)})
+  except Exception as e:
+    return JSONResponse({'ok': False, 'auto_continue': False, 'error': str(e)}, status_code=500)
 
 
 if __name__ == "__main__":

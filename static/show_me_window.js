@@ -166,20 +166,20 @@ try{
 
   // Settings
   async function loadSettings() {
+    try{
+      const res = await fetch('/api/public/auto_continue');
+      if (res.ok){
+        const j = await res.json();
+        if (j && j.auto_continue === true) return true;
+        return false;
+      }
+    }catch(e){ /* ignore */ }
     try {
-      const r = await fetch('/api/settings');
-      if (!r.ok) throw new Error('not ok');
-      const data = await r.json();
-      $('#settingsBox').textContent = JSON.stringify(data, null, 2);
-      if (typeof data.tts_speed === 'number') $('#ttsSpeed').value = data.tts_speed;
-      if (typeof data.queue_reminder_minutes === 'number') $('#queueMinutes').value = data.queue_reminder_minutes;
-  if (typeof data.agent_use_langgraph === 'boolean') { $('#agentUseLanggraph').checked = data.agent_use_langgraph; setLangPill(data.agent_use_langgraph); }
-      $('#settingsNote').textContent = 'Loaded from /api/settings';
-    } catch {
       $('#settingsBox').textContent = '(settings API unavailable — UI will still work; Save disabled)';
       $('#settingsNote').textContent = '';
       const btn = $('#saveSettings'); if (btn) btn.disabled = true;
-    }
+    } catch(_) {}
+    return false;
   }
   $('#saveSettings') && ($('#saveSettings').onclick = async () => {
     try {
@@ -241,7 +241,8 @@ try{
   // Rotate admin token via API
   const RAILWAY_VARS_URL = 'https://railway.com/project/451db926-5f6b-4131-9035-f4a9481cad5b/service/3392195a-b847-48a0-bd42-ebfd5138770a/variables?environmentId=6a7439e0-62ec-4331-b6f5-5d0777955795';
   $('#rotateAdminBtn') && ($('#rotateAdminBtn').onclick = async () => {
-    if (!confirm('Rotate admin token? This will generate a new token and save it to settings. Current UI-saved token will no longer work. Continue?')) return;
+  if (!window.vmConfirm) window.vmConfirm = async function(m){ try{ const r=await fetch('/api/settings'); const j=await r.json(); const s=j.settings||{}; if(s.auto_continue==='true'||s.auto_continue===true) return true; }catch(e){} return confirm(m); };
+  if (!await window.vmConfirm('Rotate admin token? This will generate a new token and save it to settings. Current UI-saved token will no longer work. Continue?')) return;
     const token = $('#adminToken') ? $('#adminToken').value.trim() : '';
     const headers = {'content-type':'application/json'};
     if (token) headers['X-Admin-Token'] = token;
@@ -253,14 +254,14 @@ try{
       const el = $('#rotatedToken'); if (el) el.textContent = 'New token generated — copy and store securely.';
       // Show new token briefly and offer to copy
       if (newtok) {
-        const save = confirm('New admin token generated. Click OK to copy it to clipboard (and optionally save to local storage).');
+        const save = await window.vmConfirm('New admin token generated. Click OK to copy it to clipboard (and optionally save to local storage).');
         if (save) {
-          try { await navigator.clipboard.writeText(newtok); alert('New token copied to clipboard — paste/store it in Railway env and GitHub secret.'); } catch(e) { alert('Copy failed — token: '+newtok); }
-          const store = confirm('Save the new token to localStorage for this browser? (Not secure for shared machines)');
+          try { await navigator.clipboard.writeText(newtok); alert('New token copied to clipboard — paste/store it in Railway env and GitHub secret.'); } catch(e) { alert('Copy failed — token copied to clipboard.'); }
+          const store = await window.vmConfirm('Save the new token to localStorage for this browser? (Not secure for shared machines)');
           if (store) { localStorage.setItem('X_ADMIN_TOKEN', newtok); $('#adminToken').value = newtok; }
         }
         // Open Railway variables page to allow quick paste/update
-        if (confirm('Open Railway variables page to update SETTINGS_ADMIN_TOKEN now?')) {
+        if (await window.vmConfirm('Open Railway variables page to update SETTINGS_ADMIN_TOKEN now?')) {
           try { window.open(RAILWAY_VARS_URL, '_blank'); } catch(e) { /* ignore */ }
         }
       }
