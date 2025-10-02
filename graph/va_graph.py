@@ -171,7 +171,59 @@ def _build_graph():
 
     _model = settings_get("OPENAI_MODEL", os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
     _api_key = settings_get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"), decrypt=True)
-    llm = GuardedChatOpenAI(model=_model, temperature=0, api_key=_api_key)
+
+    # Defensive: log key length (not the key) to detect truncation issues
+    try:
+        if _api_key:
+            print(f"va_graph: OPENAI_API_KEY length={len(_api_key)}")
+        else:
+            print("va_graph: OPENAI_API_KEY is empty")
+    except Exception:
+        pass
+
+    # Construct the guarded adapter. Modern OpenAI key types (project/service)
+    # may require passing the key via the standard client parameter names; the
+    # GuardedChatOpenAI will defer to the underlying ChatOpenAI implementation.
+    # We pass the key as 'openai_api_key' because some wrappers accept that name.
+    llm = GuardedChatOpenAI(model=_model, temperature=0, api_key=_api_key, openai_api_key=_api_key)
+
+    # Optional lightweight validation: attempt a non-destructive test call to
+    # verify the key is accepted. We do this only if the underlying LLM
+    # appears to be constructed and has a 'invoke' method. Any failures are
+    # non-fatal but will be visible in logs to aid operators.
+    try:
+        if getattr(llm, '_inner', None) and hasattr(llm._inner, 'invoke'):
+            # Construct a minimal test message sequence depending on the client's
+            # expected shape. We avoid calling the real model with expensive
+            # tokens by crafting a tiny prompt; some SDKs may still hit billing.
+            try:
+                test_in = {'messages': [{'role': 'user', 'content': 'ping'}]}
+                resp = llm.invoke(test_in, config=None)
+                # Log a short indication of whether the call succeeded.
+                print('va_graph: OpenAI test invoke OK')
+            except Exception as e:
+                try:
+                    print('va_graph: OpenAI test invoke failed:', str(e)[:400])
+                    # If ChatOpenAI-based invoke fails, try the official openai SDK
+                    try:
+                        import openai
+                        try:
+                            # Use the same key for a lightweight models list call
+                            if _api_key:
+                                openai_client = openai.OpenAI(api_key=_api_key)
+                                models = openai_client.models.list()
+                                print('va_graph: openai SDK models.list OK')
+                        except Exception as e2:
+                            try:
+                                print('va_graph: openai SDK models.list failed:', str(e2)[:400])
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+    except Exception:
+        pass
     return create_react_agent(llm, tools, state_schema=AgentState)
 
 
