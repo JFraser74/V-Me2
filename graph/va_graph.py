@@ -243,8 +243,16 @@ class _Wrapper:
         return {"last_text": last_text, "session_id": state.get("session_id", ""), "tool_events": tool_events}
 
 
-_singleton = _Wrapper()
+_singleton: _Wrapper | None = None
 
 
 def get_graph():
+    """Return a singleton _Wrapper, creating it lazily on first call.
+
+    This prevents LangGraph and related heavy imports from running at
+    module import time (which caused crashes during deploy earlier).
+    """
+    global _singleton
+    if _singleton is None:
+        _singleton = _Wrapper()
     return _singleton
