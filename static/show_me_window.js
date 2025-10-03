@@ -524,6 +524,20 @@ try{
   loadSettings();
   loadSessions();
 
+  // Insert a lightweight 'education' seed into the conversation log to help the human operator
+  (function insertAgentSeed(){
+    try{
+      const seed = `SYSTEM SEED: V-Me2 Agent — Role and Environment:\n- You are V-Me2, an assistant embedded in a FastAPI app (V-Me2).\n- Available tools: LangGraph agent (if enabled), /agent/* endpoints for reading files, planning, and ops tasks, and Email UI (drafting).\n- Data sources: a Supabase copy of Gmail (read-only for now) and a Supabase queue table for outgoing messages — integration managed outside this UI.\n- Goal: help the human iterate on connectors, author prompts, and improve automation.\n- Safety: do not attempt to send real emails until the Supabase queue is wired and authorized.\n\nCopy this seed into chat as the first message to educate the agent about its environment.`;
+      const el = document.getElementById('log'); if (!el) return;
+      const wrapper = document.createElement('div'); wrapper.style.opacity = '0.95'; wrapper.style.background = '#071'; wrapper.style.padding = '8px'; wrapper.style.borderRadius = '8px'; wrapper.style.margin = '8px 0'; wrapper.style.color = '#e9f9ea'; wrapper.style.fontSize = '13px';
+      wrapper.innerText = seed;
+      const btn = document.createElement('button'); btn.textContent = 'Copy seed to clipboard'; btn.style.marginLeft = '8px'; btn.onclick = async ()=>{ try{ await navigator.clipboard.writeText(seed); alert('Seed copied to clipboard — paste into chat.'); }catch(e){ alert('Copy failed — select and copy manually.'); } };
+      wrapper.appendChild(document.createElement('br'));
+      wrapper.appendChild(btn);
+      el.insertBefore(wrapper, el.firstChild);
+    }catch(e){ /* ignore */ }
+  })();
+
   // Defensive: if the coding panel elements aren't present on this page
   // (for example /showme which doesn't inline coding.html), inject an
   // iframe that points at the standalone coding page so the composer
