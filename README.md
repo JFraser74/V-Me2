@@ -136,6 +136,11 @@ UI notes and tooltips
 - PDF tab: paste a remote PDF URL and hit Load, or upload a local PDF file to preview it in the iframe.
 - Settings: the UI will try to GET `/api/settings` and POST updates to it if present. The UI gracefully degrades when that endpoint is not available.
 
+Agent prompts and seeding
+------------------------
+
+We keep ready-to-seed system and session prompts in `docs/AGENT_PROMPTS.md`. The file contains a persona prompt (for `va_settings.persona_prompt`) and a coding/system prompt (for session `va_messages`) plus SQL and curl examples to seed them into Supabase.
+
 Open http://127.0.0.1:8000/ui and send a message. If `OPENAI_API_KEY` is not
 set the agent will respond with an echo (safe local fallback).
 

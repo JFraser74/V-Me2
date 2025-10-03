@@ -358,5 +358,16 @@
 })();
 
 // Confirm prompt hook (E3 placeholder)
-window.vmConfirm = async function(msg){ return window.confirm(msg); };
+// vmConfirm: centralized confirmation helper that respects server-side auto_continue
+window.vmConfirm = async function(msg){
+  try{
+    // Use a public, non-authenticated endpoint to check the auto_continue flag
+    const res = await fetch('/api/public/auto_continue');
+    if (res.ok){
+      const j = await res.json();
+      if (j && j.auto_continue === true) return true;
+    }
+  }catch(e){ /* ignore and fallback to manual confirm */ }
+  return window.confirm(msg);
+};
 

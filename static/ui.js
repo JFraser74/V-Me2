@@ -1,5 +1,6 @@
 // (2025-09-23 18:28 ET) — Minimal chat UI wiring for /agent/chat
 (function(){
+
 	const root = document.currentScript && document.currentScript.parentElement ? document.currentScript.parentElement : document.body;
 	const box = document.createElement('div');
 	box.innerHTML = `
@@ -24,6 +25,23 @@
 		</div>`;
 	root.appendChild(box);
 	const $ = (id)=>box.querySelector(id);
+
+	// Auto-approve logic: fetch settings and auto-call showSettingsPanel if auto_continue is true
+	fetch('/api/settings', {headers:{'X-Admin-Token':''}})
+	  .then(r => r.json())
+	  .then(data => {
+		const settings = data.settings || {};
+		if (settings.auto_continue === 'true' || settings.auto_continue === true) {
+		  // Auto-approve: call showSettingsPanel with empty token (read-only mode)
+		  if (window.showSettingsPanel) {
+			window.showSettingsPanel('');
+		  }
+		  // Optionally hide approval dialogs or suppress prompts here
+		  // You can add more UI logic here if needed
+		}
+	  })
+	  .catch(()=>{});
+
 	$('#send').onclick = async () => {
 		const message = $('#msg').value.trim();
 		const label = $('#label').value.trim() || undefined;
@@ -40,7 +58,7 @@
 			$('#status').textContent = '';
 		}
 	}
-})();
+	})();
 
 // Settings helpers (PUT + POST /refresh)
 async function getSettings(adminToken){
@@ -94,8 +112,15 @@ async function showSettingsPanel(adminToken){
 				const r = await fetch('/api/settings/rotate_admin',{method:'POST', headers:{'X-Admin-Token': adminToken}});
 				const j = await r.json();
 				if(j && j.new_token){
-					// Show the new token to the user to copy
-					prompt('New admin token (copy this and store it somewhere secure):', j.new_token);
+					// Non-blocking display of new token; avoid prompt() which blocks the UI
+					const existing = document.getElementById('vme-new-token-display');
+					if(existing) existing.remove();
+					const d = document.createElement('div'); d.id = 'vme-new-token-display'; d.style.marginTop = '8px'; d.style.padding = '8px'; d.style.background='#f7f7f7'; d.style.border='1px solid #ddd';
+					d.textContent = 'New admin token generated — copy and store securely.';
+					const btn = document.createElement('button'); btn.textContent='Copy token'; btn.style.marginLeft='8px';
+					btn.onclick = async ()=>{ try{ await navigator.clipboard.writeText(j.new_token); btn.textContent='Copied'; }catch(e){ alert('Copy failed — token: '+j.new_token); } };
+					d.appendChild(btn);
+					document.currentScript.parentElement.appendChild(d);
 					document.getElementById('settings_status').textContent='rotated';
 				} else {
 					document.getElementById('settings_status').textContent='rotate failed';
