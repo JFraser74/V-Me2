@@ -6,13 +6,24 @@
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <style>
       :root { --bg:#0b0b0c; --fg:#e9eaee; --muted:#9aa1ac; --card:#141519; --accent:#6ea8fe; }
-      body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial}
-      .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial;min-height:100vh;display:flex;flex-direction:column}
+    /* Allow the UI to expand to full width on large screens while keeping
+      internal content padded. This makes the Show-Me window fill wide
+      browser windows as requested. */
+    .wrap{width:100%;max-width:none;margin:0 auto;padding:18px 28px;flex:1;display:flex;flex-direction:column}
       .top{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
       .brand{display:flex;gap:10px;align-items:center}
       .brand h1{font-size:20px;margin:0}
-  .grid{display:grid;grid-template-columns:1fr;gap:16px}
+  .grid{display:grid;grid-template-columns:1fr;gap:16px;flex:1}
       .card{background:var(--card);border:1px solid #1f2026;border-radius:14px;padding:14px}
+  /* allow right column to grow and fill remaining space */
+  .card:last-of-type{flex:1;display:flex;flex-direction:column}
+  #modePanel{flex:0 0 auto}
+  #log{flex:1;overflow:auto}
+    /* Make mode header left section grow and keep the action buttons anchored
+      to the right side of the header when the viewport is wide. */
+    #modeHeader > div:first-child { flex: 1 1 auto; }
+    #modeHeader > div:last-child { flex: 0 0 auto; display:flex; gap:8px; align-items:center; }
       .card h3{margin:.1rem 0 .6rem 0;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
       .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
       input,select,button,textarea{background:#0f1115;color:var(--fg);border:1px solid #232530;border-radius:10px}
@@ -64,7 +75,7 @@
                 <div class="muted">▶</div>
               </div>
               <div id="hdr_global" style="display:none;margin-top:8px">
-                <div style="margin-bottom:6px"><a href="https://virtualme2.up.railway.app/health" target="_blank">Health</a></div>
+                <div style="margin-bottom:6px"><a href="/health" target="_blank">Health</a></div>
                 <div style="margin-bottom:6px"><a href="/static/goals.html" target="_blank">Goals</a></div>
                 <div style="margin-bottom:6px"><label class="muted">LangGraph</label>
                   <select id="h_langgraph" style="width:100%"><option value="1">Enabled</option><option value="0">Disabled</option></select>
@@ -82,6 +93,14 @@
                 <div style="margin-bottom:8px"><label class="muted">OPENAI_MODEL</label><input id="h_OPENAI_MODEL" placeholder="gpt-4o-mini" style="width:100%"/></div>
                 <div style="margin-bottom:8px"><label class="muted">SUPABASE_URL</label><input id="h_SUPABASE_URL" placeholder="https://..." style="width:100%"/></div>
                 <div style="margin-bottom:8px"><label class="muted">SUPABASE_SERVICE_ROLE_KEY (masked)</label><input id="h_SUPABASE_SERVICE_ROLE_KEY" placeholder="paste service role key" style="width:100%"/></div>
+                <div style="margin-top:8px;border-top:1px dashed #232530;padding-top:8px">
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <label class="muted" style="margin:0">Admin token</label>
+                    <input id="adminToken" placeholder="optional admin token" style="flex:1"/>
+                    <button id="rotateAdminBtn" title="Rotate admin token">Rotate</button>
+                  </div>
+                  <div id="rotatedToken" class="muted" style="margin-top:6px"></div>
+                </div>
               </div>
             </div>
 
@@ -207,6 +226,12 @@
               <div class="muted" id="modeHint" style="font-size:13px">Mode-specific controls shown here</div>
             </div>
             <div style="display:flex;gap:8px;align-items:center">
+              <!-- Mode-specific quick actions will appear here (Chat mode) -->
+              <div id="chatModeActions" style="display:flex;gap:6px;align-items:center">
+                <button id="btnNewInShowMe" class="tab">New chat</button>
+                <button id="btnNewOpsInShowMe" class="tab">New Ops Task…</button>
+                <button id="btnDelegateInShowMe" class="tab" title="Delegate to Agent">Delegate</button>
+              </div>
               <button id="modeSettingsBtn" class="tab" title="Mode settings">Mode Settings</button>
             </div>
           </div>
@@ -217,14 +242,6 @@
         </div>
       </div>
     </div>
-          <div style="height:8px"></div>
-          <div class="row">
-            <label class="muted">Admin token (X-Admin-Token)</label>
-            <input id="adminToken" placeholder="optional admin token" style="min-width:200px"/>
-            <button id="rotateAdminBtn" title="Rotate admin token">Rotate</button>
-            <div id="rotatedToken" class="muted" style="margin-left:8px"></div>
-          </div>
-
     <script>
       fetch('/status/version').then(r=>r.json()).then(v=>{
         const el=document.getElementById('vm-version');

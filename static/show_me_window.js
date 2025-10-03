@@ -38,7 +38,33 @@
   function setModeText(m){
     modePanel && (modePanel.innerHTML = ({
       Chat: 'Chat mode. Type messages or slash commands (e.g., <code>/ls .</code>, <code>/read main.py</code>).',
-      Email: 'PLACEHOLDER — Gmail-like UI, queue drafts/attachments.',
+      Email: `
+        <div style="display:flex;gap:12px">
+          <div style="flex:1 1 360px;max-width:420px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <div style="font-weight:700">Mail</div>
+              <div style="display:flex;gap:8px"><input id="emailSearch" placeholder="Search mail" style="width:220px"/><button id="emailSearchBtn">Search</button></div>
+            </div>
+            <div id="emailList" class="list" style="background:#0f1115;border:1px solid #232530;border-radius:8px;padding:8px;height:420px;overflow:auto"></div>
+          </div>
+          <div style="flex:2 1 600px;display:flex;flex-direction:column;gap:8px">
+            <div id="emailViewer" style="background:#0f1115;border:1px solid #232530;border-radius:8px;padding:12px;min-height:220px;overflow:auto">Select a message to view</div>
+            <div id="emailCompose" style="background:#0f1115;border:1px solid #232530;border-radius:8px;padding:12px">
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input id="composeTo" placeholder="To" style="flex:1"/><input id="composeSubject" placeholder="Subject" style="flex:2"/></div>
+              <!-- Gmail-like toolbar: bold, italic, list -->
+              <div id="composeToolbar" style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+                <button class="tab tb-btn" id="tbBold" title="Bold (Ctrl/Cmd+B)" style="padding:6px;font-weight:700">B</button>
+                <button class="tab tb-btn" id="tbItalic" title="Italic (Ctrl/Cmd+I)" style="padding:6px;font-style:italic">I</button>
+                <button class="tab tb-btn" id="tbList" title="Bullet list" style="padding:6px">• List</button>
+                <div style="flex:1"></div>
+                <div class="muted" style="font-size:13px">Formatting: <span style="color:#9aa1ac">rich text</span></div>
+              </div>
+              <div contenteditable id="composeBody" style="min-height:160px;border:1px solid #232530;border-radius:6px;padding:8px;background:#0b0b0d"></div>
+              <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button id="composeSend">Send</button><button id="composeQueue">Queue</button></div>
+            </div>
+          </div>
+        </div>
+      `,
       Coding: `
         <div class="row" style="margin:.3rem 0">
           <input id="codePath" placeholder="path (e.g., main.py)" style="min-width:260px"/>
@@ -141,6 +167,106 @@
       const f = pdfFile.files && pdfFile.files[0]; if(!f) return;
       const url = URL.createObjectURL(f); pdfFrame.src = url;
     };
+    // Show or hide chat-mode quick actions
+    try{
+      const actions = document.getElementById('chatModeActions');
+      if (actions) { actions.style.display = (m === 'Chat') ? 'flex' : 'none'; }
+    }catch(e){}
+
+  // Email mode wiring
+    if (m === 'Email') {
+      // load initial list
+      async function loadEmailList(q){
+        try{
+          const url = '/api/email/search' + (q ? ('?q='+encodeURIComponent(q)) : '');
+          const r = await fetch(url);
+          const j = await r.json();
+          const list = j.items || [];
+          const el = document.getElementById('emailList'); if(!el) return;
+          el.innerHTML = list.map(it => (`<div class="row" style="border-bottom:1px solid #16161a;padding:8px;align-items:center;justify-content:space-between"><div style="flex:1"><div style="font-weight:600">${it.sender}</div><div style="color:#9aa1ac;font-size:13px">${it.subject}</div></div><div style="width:120px;text-align:right"><span class="muted">${new Date(it.date).toLocaleString()}</span>${it.has_attachments? ' 📎':''}<div><a href="#" data-id="${it.id}" class="openMail">Open</a> • <a href="${it.gmsg_link}" target="_blank">Gmail</a></div></div></div>`)).join('');
+          // wire open handlers
+          document.querySelectorAll('#emailList .openMail').forEach(a=>a.onclick = async (e)=>{ e.preventDefault(); const id = a.getAttribute('data-id'); const r2 = await fetch('/api/email/message/'+encodeURIComponent(id)); const j2 = await r2.json(); if (j2 && j2.html) document.getElementById('emailViewer').innerHTML = j2.html; });
+        }catch(e){ console.warn('email load failed', e); }
+      }
+      // search wiring
+      const sbtn = document.getElementById('emailSearchBtn'); if (sbtn) sbtn.onclick = ()=> loadEmailList(document.getElementById('emailSearch').value || '');
+      const sin = document.getElementById('emailSearch'); if (sin) sin.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter'){ ev.preventDefault(); loadEmailList(sin.value||''); }});
+      // compose wiring
+      const sendBtn = document.getElementById('composeSend'); if (sendBtn) sendBtn.onclick = async ()=>{
+        const toEl = document.getElementById('composeTo'); const subjEl = document.getElementById('composeSubject'); const bodyEl = document.getElementById('composeBody');
+        const to = toEl ? toEl.value || '' : ''; const subj = subjEl ? subjEl.value || '' : ''; const body = bodyEl ? bodyEl.innerHTML || '' : '';
+        try{
+          // sanitize HTML and create plain-text fallback
+          const rawHtml = body || '';
+          const sanitized = sanitizeHtml(rawHtml);
+          const plain = (function(x){ const temp = document.createElement('div'); temp.innerHTML = x; return temp.innerText || temp.textContent || ''; })(sanitized);
+          const payload = { to, subject: subj, body_html: sanitized, body_text: plain };
+          const r = await fetch('/api/email/send', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload)});
+          const j = await r.json(); if (j && j.ok){ alert('Queued to send (task '+(j.task_id||'')+')'); document.getElementById('composeBody').innerHTML=''; }
+        }catch(e){ alert('send failed: '+e); }
+      };
+      const qbtn = document.getElementById('composeQueue'); if (qbtn) qbtn.onclick = ()=> alert('Queued (local)');
+
+      // Toolbar wiring: execCommand fallback for basic formatting
+      const tbBold = document.getElementById('tbBold');
+      const tbItalic = document.getElementById('tbItalic');
+      const tbList = document.getElementById('tbList');
+      if (tbBold) tbBold.onclick = (e)=> { document.execCommand('bold'); document.getElementById('composeBody').focus(); tbBold.classList.toggle('active'); };
+      if (tbItalic) tbItalic.onclick = (e)=> { document.execCommand('italic'); document.getElementById('composeBody').focus(); tbItalic.classList.toggle('active'); };
+      if (tbList) tbList.onclick = (e)=> { document.execCommand('insertUnorderedList'); document.getElementById('composeBody').focus(); tbList.classList.toggle('active'); };
+
+      // Add a small sanitize helper to allow a safe subset of tags
+      function sanitizeHtml(dirty) {
+        if (!dirty) return '';
+        // Create element and remove dangerous nodes/attributes
+        const doc = document.createElement('div');
+        doc.innerHTML = dirty;
+        const whitelist = ['B','STRONG','I','EM','U','UL','OL','LI','P','BR','A'];
+        const walk = (node)=>{
+          for (let i = node.childNodes.length - 1; i >= 0; i--) {
+            const child = node.childNodes[i];
+            if (child.nodeType === Node.ELEMENT_NODE) {
+              if (!whitelist.includes(child.nodeName)) {
+                // replace element with its children (strip tag)
+                while (child.firstChild) node.insertBefore(child.firstChild, child);
+                node.removeChild(child);
+              } else {
+                // allowed tag: sanitize attributes
+                // only allow href on A and ensure no javascript: URIs
+                if (child.nodeName === 'A') {
+                  const href = child.getAttribute('href');
+                  if (href && href.trim().toLowerCase().startsWith('javascript:')) { child.removeAttribute('href'); }
+                } else {
+                  // remove all attributes on non-A tags
+                  [...child.attributes].forEach(attr => child.removeAttribute(attr.name));
+                }
+                walk(child);
+              }
+            } else if (child.nodeType === Node.TEXT_NODE) {
+              // leave text nodes
+            } else {
+              // remove comments, etc
+              node.removeChild(child);
+            }
+          }
+        };
+        walk(doc);
+        return doc.innerHTML;
+      }
+
+      // Keyboard shortcuts (Ctrl/Cmd+B and Ctrl/Cmd+I) when focus is in composeBody
+      const composeBodyEl = document.getElementById('composeBody');
+      if (composeBodyEl) {
+        composeBodyEl.addEventListener('keydown', (ev)=>{
+          const meta = ev.ctrlKey || ev.metaKey;
+          if (!meta) return;
+          if (ev.key.toLowerCase() === 'b') { ev.preventDefault(); document.execCommand('bold'); }
+          if (ev.key.toLowerCase() === 'i') { ev.preventDefault(); document.execCommand('italic'); }
+        });
+      }
+      // initial load
+      loadEmailList('');
+    }
   }
   document.querySelectorAll('#modes .tab').forEach(btn=>{
     btn.onclick = () => {
@@ -149,6 +275,33 @@
       setModeText(btn.dataset.mode);
     };
   });
+
+  // Wire Show-Me Chat-mode quick actions (mirror the coding panel actions)
+  const btnNewInShowMe = $('#btnNewInShowMe');
+  const btnNewOpsInShowMe = $('#btnNewOpsInShowMe');
+  const btnDelegateInShowMe = $('#btnDelegateInShowMe');
+  if (btnNewInShowMe) btnNewInShowMe.onclick = () => { nextNewSession = true; const b = document.getElementById('newSessionBtn'); if (b) b.textContent = 'Will start new session on next send'; try{ document.getElementById('msg')?.focus(); }catch(e){} };
+  if (btnNewOpsInShowMe) btnNewOpsInShowMe.onclick = async () => {
+    const title = prompt('Task title') || '';
+    if (!title) return;
+    const body = prompt('Task body/notes (optional)') || '';
+    try{
+      const token = localStorage.getItem('ADMIN_TOKEN') || '';
+      const res = await fetch('/ops/tasks', {method:'POST', headers: {'content-type':'application/json', 'X-Admin-Token': token}, body: JSON.stringify({title, body})});
+      if (!res.ok) throw new Error('create failed');
+      const j = await res.json();
+      alert('Task created: ' + (j.id || j.task_id || ''));
+    }catch(e){ alert('Failed creating task'); }
+  };
+  if (btnDelegateInShowMe) btnDelegateInShowMe.onclick = async () => {
+    try{
+      const text = document.getElementById('msg') ? document.getElementById('msg').value : '';
+      const title = prompt('Task title?'); if (!title) return;
+      const r = await fetch('/agent/plan', { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({ title, body: text || '(no body)' }) });
+      if(!r.ok){ alert('Failed to create task'); return; }
+      const data = await r.json(); if (data && data.task_id){ alert('Planner created task ' + data.task_id); }
+    }catch(e){ alert('Failed to delegate'); }
+  };
 
 // auto-mount the coding panel if present (progressive enhancement)
 try{
